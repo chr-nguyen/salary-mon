@@ -10,9 +10,11 @@
   },
   "dependencies": {
     "@astrojs/react": "^4.4.2",
+    "@google/generative-ai": "^0.24.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "astro": "^5.16.6",
+    "firebase": "^10.8.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "styled-components": "^6.1.19"
@@ -20,5 +22,6 @@
   "devDependencies": {
     "@types/styled-components": "^5.1.36",
     "babel-plugin-styled-components": "^2.1.4"
-  }
+  },
+  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
 }

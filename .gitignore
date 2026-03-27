@@ -1,1 +1,18 @@
 node_modules
+
+# Local environment files
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+.env.*.local
+!.env.example
+
+# Build output and local tooling state
+dist
+.astro
+
+# OS/editor noise
+.DS_Store
+*.log

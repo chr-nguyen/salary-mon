@@ -1,8 +1,8 @@
 ---
-import InteractiveIsland from "../components/app";
+import { Dashboard } from "../features/dashboard/Dashboard";
 import Layout from "../layouts/Layout.astro";
 ---
 
 <Layout>
-  <InteractiveIsland client:load />
+  <Dashboard client:only="react" />
 </Layout>
