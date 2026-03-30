@@ -212,7 +212,7 @@ export function ProfileCard({
       <Header>
         <div>
           <Title>Profile + Tuning</Title>
-          <Note>Rename your trainer, rename your pet, and start shaping how the monster looks.</Note>
+          <Note>Rename the save slot, rename the partner, and swap palette.</Note>
         </div>
       </Header>
 
@@ -261,10 +261,8 @@ export function ProfileCard({
         </PaletteGrid>
 
         <FutureBox>
-          Palette selection is the first customization layer. To go further, we would add
-          appearance slots like body shape, horn or ear type, eye style, markings, and animation
-          sets, then map those traits into the pixel sprite renderer and save them in Firestore
-          beside the pet data.
+          Palette is the first tuning pass. Future layers can add body parts, markings, and
+          animation sets to the sprite save data.
         </FutureBox>
       </Section>
     </Card>

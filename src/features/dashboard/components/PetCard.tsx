@@ -361,8 +361,7 @@ export function PetCard({ pet }: { pet: SalaryMon }) {
 
         <Story>
           <Lead>
-            Your Salary-mon lives inside a tiny old-school device. Work sessions feed its growth,
-            and your stat choices shape what kind of monster it becomes.
+            Work fuels growth. Stored XP changes the build.
           </Lead>
 
           <HighlightRow>

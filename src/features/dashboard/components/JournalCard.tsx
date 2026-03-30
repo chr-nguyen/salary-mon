@@ -131,7 +131,7 @@ export function JournalCard({
       <Header>
         <div>
           <Title>Memory Log</Title>
-          <Note>Recent training days, session counts, and XP rewards.</Note>
+          <Note>Recent runs, counts, and XP payouts.</Note>
         </div>
       </Header>
 
@@ -147,6 +147,7 @@ export function JournalCard({
                 <DayLabel>{day.label}</DayLabel>
                 <DayMeta>
                   {day.sessions} session{day.sessions === 1 ? '' : 's'}
+                  {day.clientNames.length > 0 ? ` / ${day.clientNames.join(', ')}` : ''}
                 </DayMeta>
               </div>
 

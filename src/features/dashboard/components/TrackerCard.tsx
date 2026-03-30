@@ -3,6 +3,7 @@ import styled, { keyframes } from 'styled-components';
 import { Timestamp } from 'firebase/firestore';
 import { XP_PER_MINUTE } from '../../game/gameplay';
 import type { TimeEntry } from '../../time/useWorkSession';
+import type { TrackingClient } from '../../time/types';
 
 const blink = keyframes`
   0%, 100% {
@@ -138,6 +139,63 @@ const Footnote = styled.div`
   }
 `;
 
+const SetupGrid = styled.div`
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+`;
+
+const Field = styled.label`
+  display: grid;
+  gap: 4px;
+  color: #f4d9b7;
+  font-size: 11px;
+  text-transform: uppercase;
+`;
+
+const Input = styled.input`
+  border: 2px solid rgba(255, 200, 94, 0.28);
+  background: linear-gradient(180deg, #281810 0%, #160f0b 100%);
+  color: #fff4e5;
+  padding: 9px 8px;
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+
+  &::placeholder {
+    color: rgba(244, 217, 183, 0.68);
+  }
+`;
+
+const Select = styled.select`
+  border: 2px solid rgba(255, 200, 94, 0.28);
+  background: linear-gradient(180deg, #281810 0%, #160f0b 100%);
+  color: #fff4e5;
+  padding: 9px 8px;
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+`;
+
+const ToggleRow = styled.label`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 2px solid rgba(255, 200, 94, 0.28);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 18%),
+    linear-gradient(180deg, #281810 0%, #160f0b 100%);
+  color: #f4d9b7;
+  font-size: 11px;
+  text-transform: uppercase;
+`;
+
+const Checkbox = styled.input`
+  width: 16px;
+  height: 16px;
+`;
+
 const Button = styled.button<{ $active: boolean }>`
   width: 100%;
   display: flex;
@@ -181,14 +239,24 @@ function formatElapsed(ms: number) {
 
 export function TrackerCard({
   activeSession,
+  clients,
   onCheckIn,
   onCheckOut,
 }: {
   activeSession: TimeEntry | null;
-  onCheckIn: () => void;
+  clients: TrackingClient[];
+  onCheckIn: (metadata: {
+    clientId: string | null;
+    clientName: string | null;
+    label: string | null;
+    billable: boolean;
+  }) => void;
   onCheckOut: () => void;
 }) {
   const [elapsed, setElapsed] = useState(0);
+  const [selectedClientId, setSelectedClientId] = useState('');
+  const [label, setLabel] = useState('');
+  const [billable, setBillable] = useState(true);
 
   useEffect(() => {
     if (!activeSession) {
@@ -204,15 +272,29 @@ export function TrackerCard({
   }, [activeSession]);
 
   const liveXp = useMemo(() => Math.floor(elapsed / 60000) * XP_PER_MINUTE, [elapsed]);
+  const selectedClient =
+    clients.find((client) => client.id === selectedClientId) || null;
+
+  useEffect(() => {
+    if (activeSession) {
+      return;
+    }
+
+    if (selectedClient) {
+      setBillable(selectedClient.billableDefault);
+
+      if (!label && selectedClient.label) {
+        setLabel(selectedClient.label);
+      }
+    }
+  }, [activeSession, label, selectedClient]);
 
   return (
     <Card>
       <Header>
         <div>
           <Title>Session Timer</Title>
-          <Note>
-            Run the timer while you work. When the session ends, the minutes convert into XP.
-          </Note>
+          <Note>Start focus. End focus. Bank XP.</Note>
         </div>
         <RatePill>{XP_PER_MINUTE} XP/min</RatePill>
       </Header>
@@ -225,12 +307,75 @@ export function TrackerCard({
         <Timer>{formatElapsed(elapsed)}</Timer>
       </TimerShell>
 
+      {activeSession ? (
+        <Footnote>
+          {activeSession.clientName || 'General'} / {activeSession.label || 'No label'} /{' '}
+          {activeSession.billable ? 'Billable' : 'Non-billable'}
+        </Footnote>
+      ) : (
+        <SetupGrid>
+          <Field>
+            Client
+            <Select
+              onChange={(event) => {
+                const nextClientId = event.target.value;
+                const nextClient =
+                  clients.find((client) => client.id === nextClientId) || null;
+
+                setSelectedClientId(nextClientId);
+                setBillable(nextClient ? nextClient.billableDefault : true);
+                setLabel(nextClient?.label || '');
+              }}
+              value={selectedClientId}
+            >
+              <option value="">General</option>
+              {clients.map((client) => (
+                <option key={client.id} value={client.id}>
+                  {client.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+
+          <Field>
+            Label
+            <Input
+              onChange={(event) => setLabel(event.target.value)}
+              placeholder="Feature work, support, meetings..."
+              value={label}
+            />
+          </Field>
+
+          <ToggleRow>
+            <Checkbox
+              checked={billable}
+              onChange={(event) => setBillable(event.target.checked)}
+              type="checkbox"
+            />
+            Mark Next Session As Billable
+          </ToggleRow>
+        </SetupGrid>
+      )}
+
       <Footnote>
-        {activeSession ? `Projected reward: ${liveXp} XP` : 'Start a session to bank new XP'}
+        {activeSession ? `Projected reward: ${liveXp} XP` : 'Standby. No active run.'}
       </Footnote>
 
-      <Button $active={Boolean(activeSession)} onClick={activeSession ? onCheckOut : onCheckIn}>
-        {activeSession ? 'End Session' : 'Start Session'}
+      <Button
+        $active={Boolean(activeSession)}
+        onClick={
+          activeSession
+            ? onCheckOut
+            : () =>
+                onCheckIn({
+                  clientId: selectedClient?.id || null,
+                  clientName: selectedClient?.name || null,
+                  label: label.trim() || null,
+                  billable,
+                })
+        }
+      >
+        {activeSession ? 'End Focus' : 'Start Focus'}
       </Button>
     </Card>
   );

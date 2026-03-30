@@ -14,7 +14,7 @@ import {
 } from 'firebase/auth';
 import { auth, googleProvider } from '../../lib/firebase';
 
-type PendingAction = 'google' | 'create' | 'sign-in' | 'sign-out' | null;
+type PendingAction = 'google' | 'create' | 'sign-in' | 'sign-out' | 'profile' | null;
 
 function toFriendlyMessage(error: unknown) {
   const code =
@@ -194,6 +194,30 @@ export function useAuthSession() {
     }
   };
 
+  const updateDisplayName = async (displayName: string) => {
+    const trimmed = displayName.trim();
+
+    if (!auth.currentUser || !trimmed) {
+      return false;
+    }
+
+    setPendingAction('profile');
+    setError(null);
+
+    try {
+      await updateProfile(auth.currentUser, {
+        displayName: trimmed.slice(0, 24),
+      });
+
+      return true;
+    } catch (nextError) {
+      setError(toFriendlyMessage(nextError));
+      return false;
+    } finally {
+      setPendingAction(null);
+    }
+  };
+
   return {
     user,
     loading,
@@ -203,5 +227,6 @@ export function useAuthSession() {
     signInWithEmail,
     signInWithGoogle,
     signOutUser,
+    updateDisplayName,
   };
 }

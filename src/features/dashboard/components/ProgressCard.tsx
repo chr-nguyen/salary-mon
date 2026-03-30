@@ -217,9 +217,7 @@ export function ProgressCard({
       <Header>
         <div>
           <Title>Evolution Menu</Title>
-          <Note>
-            Total XP raises level. Stored XP is the currency you spend to shape the creature build.
-          </Note>
+          <Note>Level comes from total XP. Stored XP buys upgrades.</Note>
         </div>
 
         <Wallet>

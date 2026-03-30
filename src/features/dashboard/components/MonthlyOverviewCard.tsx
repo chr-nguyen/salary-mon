@@ -167,7 +167,7 @@ export function MonthlyOverviewCard({
         <Header>
           <div>
             <Title>Monthly View</Title>
-            <Note>Loading this month&apos;s work pattern...</Note>
+            <Note>Reading the current month...</Note>
           </div>
         </Header>
         <Empty>Loading month data...</Empty>
@@ -181,7 +181,7 @@ export function MonthlyOverviewCard({
         <Header>
           <div>
             <Title>Monthly View</Title>
-            <Note>Track your hours across the month to spot pace and consistency.</Note>
+            <Note>No bars yet. Finish a session to seed the chart.</Note>
           </div>
         </Header>
         <Empty>No sessions in the current month yet.</Empty>
@@ -196,7 +196,7 @@ export function MonthlyOverviewCard({
       <Header>
         <div>
           <Title>Monthly View</Title>
-          <Note>A quick visual of how much you&apos;ve worked throughout {summary.monthLabel}.</Note>
+          <Note>Work rhythm across {summary.monthLabel}.</Note>
         </div>
         <MonthChip>{summary.monthLabel}</MonthChip>
       </Header>

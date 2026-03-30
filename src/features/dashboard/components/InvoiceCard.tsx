@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import styled from 'styled-components';
-import type { MonthlyWorkSummary } from '../../time/useWorkHistory';
+import type { WorkEntryRecord } from '../../time/useWorkHistory';
+import type { BusinessProfile, TrackingClient } from '../../time/types';
 
 const Card = styled.section`
   padding: 10px;
@@ -10,14 +11,6 @@ const Card = styled.section`
     inset 1px 1px 0 rgba(255, 255, 255, 0.26),
     inset -1px -1px 0 rgba(0, 0, 0, 0.52),
     0 0 0 2px #1b2e6a;
-
-  @media (min-width: 1280px) {
-    padding: 14px;
-  }
-
-  @media (min-width: 2200px) {
-    padding: 20px;
-  }
 `;
 
 const Header = styled.div`
@@ -46,14 +39,6 @@ const Note = styled.p`
   color: #d8def7;
   font-size: 12px;
   line-height: 1.45;
-
-  @media (min-width: 1280px) {
-    font-size: 14px;
-  }
-
-  @media (min-width: 2200px) {
-    font-size: 18px;
-  }
 `;
 
 const Form = styled.div`
@@ -90,10 +75,19 @@ const Input = styled.input`
   font: inherit;
   font-size: 13px;
   outline: none;
+`;
 
-  &::placeholder {
-    color: #a7b5e6;
-  }
+const Select = styled.select`
+  border: 2px solid #dfe7ff;
+  background: linear-gradient(180deg, #203274 0%, #111941 100%);
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.12),
+    inset -1px -1px 0 rgba(0, 0, 0, 0.35);
+  color: #f8fbff;
+  padding: 9px 8px;
+  font: inherit;
+  font-size: 13px;
+  outline: none;
 `;
 
 const SummaryBox = styled.div`
@@ -153,9 +147,6 @@ const SecondaryButton = styled(Button)`
   border: 1px solid #dfe7ff;
   background: linear-gradient(180deg, #536ecb 0%, #293f94 100%);
   color: #f5f8ff;
-  box-shadow:
-    inset 1px 1px 0 rgba(255, 255, 255, 0.18),
-    inset -1px -1px 0 rgba(0, 0, 0, 0.42);
 `;
 
 const Empty = styled.div`
@@ -172,21 +163,14 @@ const Empty = styled.div`
   line-height: 1.45;
 `;
 
-function downloadFile(filename: string, content: string, type: string) {
-  const blob = new Blob([content], { type });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
+function startOfCurrentMonth() {
+  const date = new Date();
+  return new Date(date.getFullYear(), date.getMonth(), 1);
 }
 
-function currency(value: number) {
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency: 'USD',
-  }).format(value);
+function endOfCurrentMonth() {
+  const date = new Date();
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0);
 }
 
 function formatDate(date: Date) {
@@ -197,43 +181,174 @@ function formatDate(date: Date) {
   }).format(date);
 }
 
-export function InvoiceCard({
-  summary,
-}: {
-  summary: MonthlyWorkSummary | null;
-}) {
-  const [clientName, setClientName] = useState('Client Name');
-  const [invoiceNumber, setInvoiceNumber] = useState('INV-001');
-  const [hourlyRate, setHourlyRate] = useState('60');
+function formatDateInput(date: Date) {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, '0');
+  const day = `${date.getDate()}`.padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
+function parseDateInput(value: string, endOfDay = false) {
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(year, (month || 1) - 1, day || 1);
+
+  if (endOfDay) {
+    date.setHours(23, 59, 59, 999);
+  } else {
+    date.setHours(0, 0, 0, 0);
+  }
+
+  return date;
+}
+
+function createDefaultInvoiceNumber(prefix: string) {
+  const date = new Date();
+  const stamp = `${date.getFullYear()}${`${date.getMonth() + 1}`.padStart(2, '0')}${`${date.getDate()}`.padStart(2, '0')}`;
+  return `${prefix || 'INV'}-${stamp}`;
+}
+
+function currency(value: number, currencyCode: string) {
+  return new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: currencyCode || 'USD',
+  }).format(value);
+}
+
+function downloadFile(filename: string, content: string, type: string) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+export function InvoiceCard({
+  businessProfile,
+  clients,
+  entries,
+  loading,
+}: {
+  businessProfile: BusinessProfile;
+  clients: TrackingClient[];
+  entries: WorkEntryRecord[];
+  loading: boolean;
+}) {
+  const [selectedClientId, setSelectedClientId] = useState('');
+  const [invoiceNumber, setInvoiceNumber] = useState(createDefaultInvoiceNumber(businessProfile.invoicePrefix));
+  const [hourlyRate, setHourlyRate] = useState('0');
+  const [startDate, setStartDate] = useState(formatDateInput(startOfCurrentMonth()));
+  const [endDate, setEndDate] = useState(formatDateInput(endOfCurrentMonth()));
+
+  useEffect(() => {
+    if (!selectedClientId && clients.length > 0) {
+      setSelectedClientId(clients[0].id);
+    }
+  }, [clients, selectedClientId]);
+
+  useEffect(() => {
+    const selectedClient = clients.find((client) => client.id === selectedClientId);
+
+    if (selectedClient) {
+      setHourlyRate(String(selectedClient.hourlyRate || 0));
+    }
+  }, [clients, selectedClientId]);
+
+  useEffect(() => {
+    setInvoiceNumber((current) =>
+      current ? current : createDefaultInvoiceNumber(businessProfile.invoicePrefix),
+    );
+  }, [businessProfile.invoicePrefix]);
+
+  const selectedClient = clients.find((client) => client.id === selectedClientId) || null;
   const numericRate = Number(hourlyRate) || 0;
-  const totalAmount = useMemo(
-    () => ((summary?.totalMinutes || 0) / 60) * numericRate,
-    [numericRate, summary?.totalMinutes],
+  const rangeStart = parseDateInput(startDate);
+  const rangeEnd = parseDateInput(endDate, true);
+
+  const filteredEntries = useMemo(
+    () =>
+      entries
+        .filter((entry) => entry.endDate)
+        .filter((entry) => entry.billable)
+        .filter((entry) => (selectedClientId ? entry.clientId === selectedClientId : true))
+        .filter((entry) => entry.startDate >= rangeStart && entry.startDate <= rangeEnd)
+        .sort((left, right) => left.startDate.getTime() - right.startDate.getTime()),
+    [entries, rangeEnd, rangeStart, selectedClientId],
   );
 
-  if (!summary) {
+  const lineItems = useMemo(() => {
+    const grouped = new Map<
+      string,
+      {
+        date: string;
+        label: string;
+        minutes: number;
+      }
+    >();
+
+    filteredEntries.forEach((entry) => {
+      const dateLabel = formatDate(entry.startDate);
+      const label = entry.label || 'General';
+      const key = `${dateLabel}|${label}`;
+      const existing = grouped.get(key);
+
+      if (existing) {
+        existing.minutes += entry.durationMinutes;
+        return;
+      }
+
+      grouped.set(key, {
+        date: dateLabel,
+        label,
+        minutes: entry.durationMinutes,
+      });
+    });
+
+    return Array.from(grouped.values());
+  }, [filteredEntries]);
+
+  const totalMinutes = filteredEntries.reduce((sum, entry) => sum + entry.durationMinutes, 0);
+  const totalHours = Number((totalMinutes / 60).toFixed(2));
+  const totalAmount = Number(((totalMinutes / 60) * numericRate).toFixed(2));
+
+  if (loading) {
     return (
       <Card>
         <Header>
           <div>
             <Title>Invoice Tool</Title>
-            <Note>Create a downloadable invoice document from your tracked hours.</Note>
+            <Note>Loading billable work history...</Note>
           </div>
         </Header>
-        <Empty>Track some time this month first, then you can generate an invoice document.</Empty>
+        <Empty>Reading saved sessions...</Empty>
+      </Card>
+    );
+  }
+
+  if (clients.length === 0) {
+    return (
+      <Card>
+        <Header>
+          <div>
+            <Title>Invoice Tool</Title>
+            <Note>Export billable sessions into an invoice by client and date range.</Note>
+          </div>
+        </Header>
+        <Empty>Create a client first, then track billable sessions against it.</Empty>
       </Card>
     );
   }
 
   const createHtmlInvoice = () => {
-    const rows = summary.daily
-      .map((day) => {
-        const hours = (day.totalMinutes / 60).toFixed(2);
-        const amount = currency((day.totalMinutes / 60) * numericRate);
+    const rows = lineItems
+      .map((item) => {
+        const hours = (item.minutes / 60).toFixed(2);
+        const amount = currency((item.minutes / 60) * numericRate, businessProfile.currency);
 
         return `<tr>
-  <td>${day.label}</td>
+  <td>${item.date}</td>
+  <td>${item.label}</td>
   <td>${hours}</td>
   <td>${amount}</td>
 </tr>`;
@@ -248,22 +363,39 @@ export function InvoiceCard({
     <style>
       body { font-family: Arial, sans-serif; margin: 40px; color: #111; }
       h1, h2 { margin-bottom: 0.2rem; }
+      .meta { color: #444; margin-bottom: 10px; }
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-top: 24px; }
       table { width: 100%; border-collapse: collapse; margin-top: 24px; }
       th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
       th { background: #f5f5f5; }
       .totals { margin-top: 24px; font-size: 18px; font-weight: bold; }
-      .meta { color: #444; margin-bottom: 16px; }
     </style>
   </head>
   <body>
     <h1>Invoice ${invoiceNumber}</h1>
-    <div class="meta">Client: ${clientName}</div>
-    <div class="meta">Month: ${summary.monthLabel}</div>
     <div class="meta">Generated: ${formatDate(new Date())}</div>
+    <div class="meta">Period: ${formatDate(rangeStart)} - ${formatDate(rangeEnd)}</div>
+    <div class="grid">
+      <div>
+        <h2>From</h2>
+        <div>${businessProfile.businessName || 'Business Name'}</div>
+        <div>${businessProfile.contactName || ''}</div>
+        <div>${businessProfile.email || ''}</div>
+        <div>${businessProfile.addressLine1 || ''}</div>
+        <div>${businessProfile.addressLine2 || ''}</div>
+        <div>${businessProfile.cityStatePostal || ''}</div>
+      </div>
+      <div>
+        <h2>Bill To</h2>
+        <div>${selectedClient?.name || 'Client'}</div>
+        <div>Terms: ${businessProfile.paymentTerms || 'Due on receipt'}</div>
+      </div>
+    </div>
     <table>
       <thead>
         <tr>
           <th>Date</th>
+          <th>Label</th>
           <th>Hours</th>
           <th>Amount</th>
         </tr>
@@ -272,9 +404,9 @@ export function InvoiceCard({
         ${rows}
       </tbody>
     </table>
-    <div class="totals">Total Hours: ${summary.totalHours}</div>
-    <div class="totals">Hourly Rate: ${currency(numericRate)}</div>
-    <div class="totals">Total Due: ${currency(totalAmount)}</div>
+    <div class="totals">Total Hours: ${totalHours}</div>
+    <div class="totals">Hourly Rate: ${currency(numericRate, businessProfile.currency)}</div>
+    <div class="totals">Total Due: ${currency(totalAmount, businessProfile.currency)}</div>
   </body>
 </html>`;
 
@@ -284,19 +416,22 @@ export function InvoiceCard({
   const createCsvInvoice = () => {
     const lines = [
       ['Invoice Number', invoiceNumber],
-      ['Client', clientName],
-      ['Month', summary.monthLabel],
+      ['Client', selectedClient?.name || ''],
+      ['Period Start', formatDate(rangeStart)],
+      ['Period End', formatDate(rangeEnd)],
       ['Hourly Rate', numericRate.toString()],
+      ['Currency', businessProfile.currency],
       [''],
-      ['Date', 'Minutes', 'Hours', 'Amount'],
-      ...summary.daily.map((day) => [
-        day.label,
-        day.totalMinutes.toString(),
-        (day.totalMinutes / 60).toFixed(2),
-        ((day.totalMinutes / 60) * numericRate).toFixed(2),
+      ['Date', 'Label', 'Minutes', 'Hours', 'Amount'],
+      ...lineItems.map((item) => [
+        item.date,
+        item.label,
+        item.minutes.toString(),
+        (item.minutes / 60).toFixed(2),
+        ((item.minutes / 60) * numericRate).toFixed(2),
       ]),
       [''],
-      ['Total Hours', summary.totalHours.toString()],
+      ['Total Hours', totalHours.toString()],
       ['Total Due', totalAmount.toFixed(2)],
     ];
 
@@ -309,16 +444,30 @@ export function InvoiceCard({
       <Header>
         <div>
           <Title>Invoice Tool</Title>
-          <Note>Turn this month&apos;s tracked hours into a simple invoice document.</Note>
+          <Note>Use billable labeled sessions to export a simple invoice for one client.</Note>
         </div>
       </Header>
+
+      {!businessProfile.businessName ? (
+        <Empty>Save business details first so the invoice has a sender identity.</Empty>
+      ) : null}
 
       <Form>
         <Row>
           <Field>
-            Client Name
-            <Input value={clientName} onChange={(event) => setClientName(event.target.value)} />
+            Client
+            <Select
+              value={selectedClientId}
+              onChange={(event) => setSelectedClientId(event.target.value)}
+            >
+              {clients.map((client) => (
+                <option key={client.id} value={client.id}>
+                  {client.name}
+                </option>
+              ))}
+            </Select>
           </Field>
+
           <Field>
             Invoice Number
             <Input
@@ -330,7 +479,19 @@ export function InvoiceCard({
 
         <Row>
           <Field>
-            Hourly Rate (USD)
+            Period Start
+            <Input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
+          </Field>
+
+          <Field>
+            Period End
+            <Input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
+          </Field>
+        </Row>
+
+        <Row>
+          <Field>
+            Hourly Rate
             <Input
               inputMode="decimal"
               value={hourlyRate}
@@ -340,26 +501,34 @@ export function InvoiceCard({
         </Row>
       </Form>
 
+      {filteredEntries.length === 0 ? (
+        <Empty>No billable sessions for this client in the selected date range yet.</Empty>
+      ) : null}
+
       <SummaryBox>
         <Stat>
           <StatLabel>Billable Hours</StatLabel>
-          <StatValue>{summary.totalHours}</StatValue>
+          <StatValue>{totalHours}</StatValue>
         </Stat>
         <Stat>
           <StatLabel>Rate</StatLabel>
-          <StatValue>{currency(numericRate)}</StatValue>
+          <StatValue>{currency(numericRate, businessProfile.currency)}</StatValue>
         </Stat>
         <Stat>
           <StatLabel>Total Due</StatLabel>
-          <StatValue>{currency(totalAmount)}</StatValue>
+          <StatValue>{currency(totalAmount, businessProfile.currency)}</StatValue>
         </Stat>
       </SummaryBox>
 
       <ActionRow>
-        <Button onClick={createHtmlInvoice} type="button">
+        <Button disabled={filteredEntries.length === 0} onClick={createHtmlInvoice} type="button">
           Download Invoice
         </Button>
-        <SecondaryButton onClick={createCsvInvoice} type="button">
+        <SecondaryButton
+          disabled={filteredEntries.length === 0}
+          onClick={createCsvInvoice}
+          type="button"
+        >
           Export CSV
         </SecondaryButton>
       </ActionRow>

@@ -1,22 +1,46 @@
-import React, { startTransition, useState } from 'react';
+import React, { startTransition, useMemo, useState } from 'react';
 import styled, { createGlobalStyle, keyframes } from 'styled-components';
 import { AuthScreen } from '../auth/AuthScreen';
 import { useAuthSession } from '../auth/useAuthSession';
 import { useSalaryMon } from '../game/useSalaryMon';
+import { useBusinessProfile } from '../time/useBusinessProfile';
+import { useCalendarEvents } from '../time/useCalendarEvents';
+import { useCalendarConnection } from '../time/useCalendarConnection';
+import { useClients } from '../time/useClients';
 import { useWorkHistory } from '../time/useWorkHistory';
+import { useSchedulePreferences } from '../time/useSchedulePreferences';
 import { useWorkSession } from '../time/useWorkSession';
-import { PetCard } from './components/PetCard';
-import { ProgressCard } from './components/ProgressCard';
-import { TrackerCard } from './components/TrackerCard';
+import { BusinessProfileCard } from './components/BusinessProfileCard';
+import { CalendarConnectionCard } from './components/CalendarConnectionCard';
+import { ClientDeskCard } from './components/ClientDeskCard';
+import { GoalsCard } from './components/GoalsCard';
+import { InvoiceCard } from './components/InvoiceCard';
 import { JournalCard } from './components/JournalCard';
 import { MonthlyOverviewCard } from './components/MonthlyOverviewCard';
-import { InvoiceCard } from './components/InvoiceCard';
+import { PetCard } from './components/PetCard';
+import { PlannerCard } from './components/PlannerCard';
 import { ProfileCard } from './components/ProfileCard';
+import { ProgressCard } from './components/ProgressCard';
+import { TrackerCard } from './components/TrackerCard';
+
+type DashboardView = 'home' | 'train' | 'log' | 'tools';
+
+const VIEW_OPTIONS: {
+  id: DashboardView;
+  label: string;
+  caption: string;
+  title: string;
+}[] = [
+  { id: 'home', label: 'MON', caption: 'pet', title: 'Partner Deck' },
+  { id: 'train', label: 'XP', caption: 'train', title: 'Training Menu' },
+  { id: 'log', label: 'LOG', caption: 'memo', title: 'Memory Log' },
+  { id: 'tools', label: 'KIT', caption: 'tools', title: 'Utility Kit' },
+];
 
 const boot = keyframes`
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(14px);
   }
 
   to {
@@ -25,60 +49,40 @@ const boot = keyframes`
   }
 `;
 
-const blink = keyframes`
-  0%, 100% {
-    opacity: 0.35;
+const press = keyframes`
+  from {
+    transform: translateY(0);
   }
 
   50% {
-    opacity: 1;
-  }
-`;
-
-const viewSwap = keyframes`
-  from {
-    opacity: 0;
-    transform: translateY(12px) scale(0.985);
-    filter: saturate(0.82);
+    transform: translateY(1px);
   }
 
   to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-    filter: saturate(1);
+    transform: translateY(0);
   }
 `;
 
-type DashboardView = 'gameplay' | 'customization' | 'calendar';
-
-const VIEW_OPTIONS: { id: DashboardView; label: string }[] = [
-  { id: 'gameplay', label: 'Main Gameplay' },
-  { id: 'customization', label: 'Character Customization' },
-  { id: 'calendar', label: 'Calendar & Time' },
-];
-
 const GlobalStyle = createGlobalStyle`
   :root {
-    color-scheme: dark;
-    --bg: #060811;
-    --shell-top: #2d1c49;
-    --shell-mid: #17132d;
-    --shell-low: #0a0d17;
-    --shell-edge: #7af0ff;
-    --shell-shadow: #03040a;
-    --screen-a: #2f2355;
-    --screen-b: #17122f;
-    --screen-c: #0b1021;
-    --screen-d: #060812;
-    --accent: #ffc85e;
-    --accent-hot: #ff6f7d;
-    --accent-cyan: #74efff;
-    --accent-lime: #c3ff6a;
-    --danger: #ff8fa3;
-    --ink: #fffaf7;
-    --ink-dim: #cfd5ee;
-    --ink-low: #9ea8d6;
-    font-family: "Trebuchet MS", Verdana, sans-serif;
+    color-scheme: light;
+    --bg-top: #e0cfab;
+    --bg-mid: #b48e63;
+    --bg-low: #5d462f;
+    --shell-light: #d9d1b6;
+    --shell-mid: #b3a37c;
+    --shell-dark: #706549;
+    --shell-ink: #3d3524;
+    --lcd-hi: #dce7a8;
+    --lcd-mid: #9cab62;
+    --lcd-low: #56653f;
+    --lcd-shadow: #28301e;
+    --accent: #d85b30;
+    --accent-hot: #b93f24;
+    --danger: #8e2f1f;
+    --ink: #1d1a12;
+    --ink-dim: #4d4738;
+    font-family: "Courier New", monospace;
   }
 
   * {
@@ -86,390 +90,393 @@ const GlobalStyle = createGlobalStyle`
   }
 
   html {
-    background: var(--bg);
+    background: #9a7c57;
   }
 
   body {
     margin: 0;
     min-height: 100vh;
     background:
-      radial-gradient(circle at 18% 20%, rgba(255, 111, 125, 0.28) 0%, transparent 18%),
-      radial-gradient(circle at 82% 18%, rgba(116, 239, 255, 0.22) 0%, transparent 20%),
-      radial-gradient(circle at 50% 78%, rgba(255, 200, 94, 0.18) 0%, transparent 24%),
-      linear-gradient(135deg, rgba(255, 255, 255, 0.04) 25%, transparent 25%),
-      linear-gradient(225deg, rgba(255, 255, 255, 0.03) 25%, transparent 25%),
-      linear-gradient(180deg, #251442 0%, #0e1226 46%, #05070e 100%);
-    background-size: auto, auto, auto, 18px 18px, 18px 18px, auto;
-    background-position: 0 0, 0 0, 0 0, 0 0, 9px 9px, 0 0;
+      radial-gradient(circle at 18% 18%, rgba(255, 248, 220, 0.38) 0%, transparent 20%),
+      radial-gradient(circle at 82% 12%, rgba(130, 193, 108, 0.22) 0%, transparent 18%),
+      linear-gradient(180deg, var(--bg-top) 0%, var(--bg-mid) 48%, var(--bg-low) 100%);
     color: var(--ink);
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
   }
 `;
 
 const Screen = styled.main`
   min-height: 100vh;
-  padding: 10px 10px 20px;
-
-  @media (min-width: 800px) and (min-height: 560px) {
-    display: grid;
-    align-items: center;
-    padding: 20px;
-  }
-
-  @media (min-width: 2200px) {
-    padding: 40px;
-  }
+  display: grid;
+  place-items: center;
+  padding: 18px 12px 36px;
 `;
 
-const Device = styled.div`
-  width: min(100%, 430px);
-  margin: 0 auto;
-  padding: 12px;
-  border: 2px solid var(--shell-edge);
+const Device = styled.section`
+  width: min(100%, 540px);
+  padding: 14px;
+  border: 2px solid rgba(61, 53, 36, 0.8);
+  border-radius: 28px 28px 34px 34px;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, transparent 14%),
-    linear-gradient(145deg, #2c1f46 0%, #140f24 55%, #090b13 100%);
+    radial-gradient(circle at 20% 14%, rgba(255, 255, 255, 0.55) 0%, transparent 22%),
+    linear-gradient(160deg, #efe8cf 0%, var(--shell-light) 18%, var(--shell-mid) 72%, #8f7f59 100%);
   box-shadow:
-    inset 1px 1px 0 rgba(255, 255, 255, 0.16),
-    inset -1px -1px 0 rgba(0, 0, 0, 0.72),
-    0 0 0 2px rgba(255, 111, 125, 0.22),
-    0 0 0 4px rgba(116, 239, 255, 0.12),
-    0 24px 50px rgba(0, 0, 0, 0.55);
-  position: relative;
-  overflow: hidden;
+    inset 1px 1px 0 rgba(255, 255, 255, 0.72),
+    inset -2px -2px 0 rgba(55, 45, 30, 0.4),
+    0 30px 55px rgba(38, 24, 9, 0.32);
+  animation: ${boot} 180ms steps(8, end);
 
-  &::before,
-  &::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-  }
-
-  &::before {
-    background:
-      linear-gradient(115deg, transparent 0 28%, rgba(255, 111, 125, 0.12) 28% 32%, transparent 32% 100%),
-      linear-gradient(290deg, transparent 0 68%, rgba(116, 239, 255, 0.12) 68% 72%, transparent 72% 100%);
-  }
-
-  &::after {
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    inset: 6px;
-  }
-
-  @media (min-width: 800px) and (min-height: 560px) {
-    width: min(96vw, 1060px);
-    padding: 14px;
-  }
-
-  @media (min-width: 1280px) {
-    width: min(94vw, 1320px);
-    padding: 16px;
-  }
-
-  @media (min-width: 2200px) {
-    width: min(88vw, 1880px);
-    padding: 24px;
+  @media (min-width: 980px) {
+    width: min(96vw, 1120px);
+    padding: 18px 18px 24px;
   }
 `;
 
-const Shell = styled.div`
+const TopBar = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 4px 14px;
+  color: var(--shell-ink);
+  text-transform: uppercase;
+`;
+
+const BrandBlock = styled.div`
+  display: grid;
+  gap: 4px;
+`;
+
+const BrandTitle = styled.div`
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+`;
+
+const BrandSubline = styled.div`
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: rgba(61, 53, 36, 0.72);
+`;
+
+const Speaker = styled.div`
+  display: grid;
+  gap: 6px;
+  justify-items: end;
+  padding-top: 4px;
+`;
+
+const SpeakerRow = styled.div`
+  display: flex;
+  gap: 6px;
+`;
+
+const SpeakerDot = styled.span`
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(61, 53, 36, 0.55);
+`;
+
+const StatusStrip = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+
+  @media (min-width: 980px) {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+`;
+
+const StatusCell = styled.div`
+  padding: 8px 10px;
+  border: 2px solid rgba(61, 53, 36, 0.65);
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.36) 0%, rgba(255, 255, 255, 0.08) 24%, transparent 24%),
+    linear-gradient(180deg, rgba(140, 120, 87, 0.3) 0%, rgba(98, 82, 56, 0.16) 100%);
+`;
+
+const StatusLabel = styled.div`
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(61, 53, 36, 0.76);
+`;
+
+const StatusValue = styled.div`
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+`;
+
+const Bezel = styled.div`
+  padding: 14px;
+  border: 2px solid rgba(61, 53, 36, 0.9);
+  border-radius: 20px;
+  background: linear-gradient(180deg, #7b725b 0%, #5f563f 100%);
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.15),
+    inset -2px -2px 0 rgba(28, 25, 18, 0.35);
+`;
+
+const Lcd = styled.div`
+  min-height: 640px;
+  padding: 14px;
+  border: 2px solid rgba(37, 45, 28, 0.95);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.14) 0%, transparent 10%),
+    repeating-linear-gradient(0deg, rgba(63, 76, 44, 0.16) 0 2px, transparent 2px 4px),
+    linear-gradient(180deg, var(--lcd-hi) 0%, #bccd85 22%, var(--lcd-mid) 68%, var(--lcd-low) 100%);
+  box-shadow:
+    inset 0 0 0 2px rgba(215, 230, 165, 0.2),
+    inset 0 0 24px rgba(40, 48, 30, 0.24);
+`;
+
+const LcdTop = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid rgba(40, 48, 30, 0.55);
+`;
+
+const ScreenHeading = styled.div`
+  display: grid;
+  gap: 4px;
+`;
+
+const ScreenTag = styled.div`
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: rgba(29, 26, 18, 0.65);
+`;
+
+const ScreenTitle = styled.h1`
+  margin: 0;
+  font-size: 24px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+`;
+
+const ScreenMessage = styled.p`
+  margin: 0;
+  max-width: 560px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(29, 26, 18, 0.8);
+`;
+
+const LogoutButton = styled.button`
+  align-self: start;
+  border: 2px solid rgba(37, 45, 28, 0.82);
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: linear-gradient(180deg, #f6daa8 0%, #d1a35d 100%);
+  color: #33230a;
+  text-transform: uppercase;
+  cursor: pointer;
+`;
+
+const Viewport = styled.div`
+  margin-top: 14px;
+  padding: 10px;
+  border: 2px solid rgba(40, 48, 30, 0.7);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, transparent 16%),
+    rgba(73, 86, 51, 0.18);
+`;
+
+const ViewStack = styled.div`
   display: grid;
   gap: 10px;
-  animation: ${boot} 140ms steps(6, end);
-
-  @media (min-width: 800px) and (min-height: 560px) {
-    gap: 14px;
-  }
-
-  @media (min-width: 2200px) {
-    gap: 20px;
-  }
 `;
 
-const Header = styled.header`
-  position: relative;
-  padding: 10px;
-  border: 2px solid var(--shell-edge);
-  background:
-    radial-gradient(circle at 86% 18%, rgba(116, 239, 255, 0.18) 0 10%, transparent 11%),
-    radial-gradient(circle at 14% 22%, rgba(255, 111, 125, 0.24) 0 12%, transparent 13%),
-    linear-gradient(120deg, rgba(255, 255, 255, 0.12) 0 22%, transparent 22% 100%),
-    linear-gradient(135deg, #ff6f7d 0%, #7d2b89 28%, #2c1f75 62%, #10183f 100%);
-  box-shadow:
-    inset 1px 1px 0 rgba(255, 255, 255, 0.24),
-    inset -1px -1px 0 rgba(0, 0, 0, 0.42),
-    0 0 0 2px rgba(10, 12, 29, 0.8);
+const HomeGrid = styled.div`
+  display: grid;
+  gap: 10px;
 
-  &::after {
-    content: '';
-    position: absolute;
-    right: 12px;
-    top: 12px;
-    width: 84px;
-    height: 84px;
-    background:
-      radial-gradient(circle, rgba(255, 255, 255, 0.22) 0 14%, transparent 16%),
-      linear-gradient(180deg, transparent 0 44%, rgba(255, 255, 255, 0.12) 44% 56%, transparent 56% 100%),
-      linear-gradient(90deg, transparent 0 44%, rgba(255, 255, 255, 0.12) 44% 56%, transparent 56% 100%);
-    opacity: 0.7;
-    pointer-events: none;
+  @media (min-width: 980px) {
+    grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+    align-items: start;
   }
 `;
 
-const HeaderBar = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+const UtilityGrid = styled.div`
+  display: grid;
+  gap: 10px;
+
+  @media (min-width: 980px) {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
 `;
 
-const Kicker = styled.div`
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 9px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(8, 11, 27, 0.36);
-  color: var(--accent);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.18em;
+const SplashCard = styled.div`
+  min-height: 420px;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  border: 2px dashed rgba(40, 48, 30, 0.58);
+  border-radius: 12px;
+  text-align: center;
+  font-size: 14px;
   text-transform: uppercase;
-  text-shadow: 1px 1px 0 rgba(21, 28, 64, 0.9);
-
-  &::before {
-    content: '';
-    width: 8px;
-    height: 8px;
-    background: var(--accent-cyan);
-    box-shadow: 0 0 0 1px #04111d;
-  }
-`;
-
-const UserPill = styled.div`
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 6px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: linear-gradient(180deg, rgba(8, 17, 36, 0.5) 0%, rgba(8, 11, 27, 0.78) 100%);
-  color: var(--ink);
-  font-size: 11px;
-  text-transform: uppercase;
-  box-shadow:
-    inset 1px 1px 0 rgba(255, 255, 255, 0.08),
-    inset -1px -1px 0 rgba(0, 0, 0, 0.45);
-`;
-
-const UserGem = styled.span`
-  width: 8px;
-  height: 8px;
-  background: var(--accent);
-  box-shadow: 0 0 0 1px #000;
-  animation: ${blink} 1s steps(2, end) infinite;
-`;
-
-const Headline = styled.h1`
-  margin: 10px 0 0;
-  color: var(--ink);
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 37px;
-  line-height: 0.9;
-  letter-spacing: 0.02em;
-  text-shadow:
-    1px 1px 0 rgba(11, 17, 50, 0.95),
-    2px 2px 0 rgba(11, 17, 50, 0.6),
-    0 0 18px rgba(122, 240, 255, 0.18);
-
-  @media (min-width: 1280px) {
-    font-size: 46px;
-  }
-
-  @media (min-width: 2200px) {
-    font-size: 68px;
-  }
-`;
-
-const Summary = styled.p`
-  margin: 10px 0 0;
-  color: var(--ink-dim);
-  font-size: 13px;
-  line-height: 1.45;
-  max-width: 70ch;
-  text-shadow: 1px 1px 0 rgba(13, 20, 52, 0.75);
-
-  @media (min-width: 1280px) {
-    max-width: 72ch;
-    font-size: 15px;
-  }
-
-  @media (min-width: 2200px) {
-    font-size: 20px;
-  }
-`;
-
-const HeaderControls = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 10px;
-`;
-
-const MenuTabs = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 12px;
-`;
-
-const MenuTab = styled.button<{ $active?: boolean }>`
-  appearance: none;
-  padding: 5px 9px;
-  border: 1px solid ${(props) => (props.$active ? '#ffdc7d' : 'rgba(255, 255, 255, 0.2)')};
-  background: ${(props) =>
-    props.$active
-      ? 'linear-gradient(180deg, #ffe795 0%, #ff9a5e 48%, #f3576c 100%)'
-      : 'linear-gradient(180deg, rgba(11, 19, 41, 0.66) 0%, rgba(7, 12, 28, 0.92) 100%)'};
-  box-shadow:
-    inset 1px 1px 0 rgba(255, 255, 255, 0.14),
-    inset -1px -1px 0 rgba(0, 0, 0, 0.42);
-  color: ${(props) => (props.$active ? '#3d140d' : '#f7f9ff')};
-  font: inherit;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition:
-    transform 140ms ease,
-    filter 140ms ease,
-    border-color 140ms ease;
-
-  &:hover {
-    transform: translateY(-1px);
-    filter: brightness(1.06);
-  }
-`;
-
-const SignalRow = styled.div`
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  color: var(--ink);
-  font-size: 10px;
-  text-transform: uppercase;
-`;
-
-const Signal = styled.span`
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 7px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: linear-gradient(180deg, rgba(11, 19, 41, 0.66) 0%, rgba(7, 12, 28, 0.92) 100%);
-  box-shadow:
-    inset 1px 1px 0 rgba(255, 255, 255, 0.08),
-    inset -1px -1px 0 rgba(0, 0, 0, 0.4);
-`;
-
-const SignalDot = styled.span<{ $color: string }>`
-  width: 8px;
-  height: 8px;
-  background: ${(props) => props.$color};
-  box-shadow: 0 0 0 1px #000;
-`;
-
-const GhostButton = styled.button`
-  border: 1px solid var(--accent-cyan);
-  background: linear-gradient(180deg, #86f5ff 0%, #2fb7e6 48%, #0f5f9d 100%);
-  box-shadow:
-    inset 1px 1px 0 rgba(255, 255, 255, 0.35),
-    inset -1px -1px 0 rgba(3, 38, 74, 0.5);
-  color: #071829;
-  padding: 7px 10px;
-  font: inherit;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  cursor: pointer;
+  color: rgba(29, 26, 18, 0.82);
 `;
 
 const Warning = styled.div`
-  padding: 10px;
-  border: 2px solid #ffd8dd;
-  background: linear-gradient(180deg, #7b3145 0%, #45192b 100%);
-  box-shadow:
-    inset 1px 1px 0 rgba(255, 255, 255, 0.16),
-    inset -1px -1px 0 rgba(0, 0, 0, 0.45),
-    0 0 0 2px #2b1020;
-  color: #ffd0d0;
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border: 2px solid rgba(142, 47, 31, 0.55);
+  border-radius: 12px;
+  background: rgba(248, 224, 182, 0.7);
+  color: var(--danger);
   font-size: 12px;
   line-height: 1.45;
-`;
-
-const LoadingCard = styled.div`
-  padding: 10px;
-  border: 2px solid var(--shell-edge);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.04) 18%, transparent 40%),
-    linear-gradient(180deg, var(--screen-a) 0%, var(--screen-b) 50%, var(--screen-c) 100%);
-  box-shadow:
-    inset 1px 1px 0 rgba(255, 255, 255, 0.22),
-    inset -1px -1px 0 rgba(0, 0, 0, 0.38),
-    0 0 0 2px #1b2c66;
-  color: var(--ink);
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
   text-transform: uppercase;
 `;
 
-const PanelsGrid = styled.div`
+const Controls = styled.div`
   display: grid;
   gap: 10px;
+  margin-top: 16px;
 
-  @media (min-width: 800px) and (min-height: 560px) {
-    grid-template-columns: repeat(12, minmax(0, 1fr));
-    align-items: start;
-    gap: 14px;
-  }
-
-  @media (min-width: 1280px) {
-    gap: 16px;
-  }
-
-  @media (min-width: 2200px) {
-    gap: 22px;
+  @media (min-width: 760px) {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 `;
 
-const PanelSlot = styled.div<{
-  $desktop?: string;
-  $wide?: string;
-  $ultra?: string;
-}>`
-  min-width: 0;
+const ControlButton = styled.button<{ $active: boolean }>`
+  display: grid;
+  gap: 2px;
+  justify-items: center;
+  padding: 14px 10px;
+  border: 2px solid rgba(61, 53, 36, 0.82);
+  border-radius: 18px;
+  background: ${(props) =>
+    props.$active
+      ? 'linear-gradient(180deg, #f7eab9 0%, #dfa968 52%, #b56f32 100%)'
+      : 'linear-gradient(180deg, #f2e8cb 0%, #c0ad7a 58%, #8c7951 100%)'};
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.66),
+    inset -2px -2px 0 rgba(55, 45, 30, 0.22);
+  color: ${(props) => (props.$active ? '#38200a' : 'var(--shell-ink)')};
+  cursor: pointer;
+  text-transform: uppercase;
 
-  @media (min-width: 800px) and (min-height: 560px) {
-    grid-column: ${(props) => props.$desktop || 'span 12'};
-  }
-
-  @media (min-width: 1280px) {
-    grid-column: ${(props) => props.$wide || props.$desktop || 'span 12'};
-  }
-
-  @media (min-width: 2200px) {
-    grid-column: ${(props) => props.$ultra || props.$wide || props.$desktop || 'span 12'};
+  &:active {
+    animation: ${press} 110ms linear;
   }
 `;
 
-const ViewStage = styled.div`
-  animation: ${viewSwap} 220ms ease;
+const ControlLabel = styled.span`
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
 `;
+
+const ControlCaption = styled.span`
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  opacity: 0.72;
+`;
+
+const FooterHint = styled.div`
+  margin-top: 8px;
+  text-align: center;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(61, 53, 36, 0.72);
+`;
+
+function getActivityMessage({
+  activeSession,
+  activeView,
+  currentMonthHours,
+  hasHistory,
+  isEnvMissing,
+  petName,
+  petStatus,
+  user,
+}: {
+  activeSession: boolean;
+  activeView: DashboardView;
+  currentMonthHours: number | null;
+  hasHistory: boolean;
+  isEnvMissing: boolean;
+  petName?: string;
+  petStatus?: string;
+  user: boolean;
+}) {
+  if (isEnvMissing) {
+    return 'Cloud save is offline until the Firebase values are filled in.';
+  }
+
+  if (!user) {
+    return 'Create a trainer file or sign in to wake the device.';
+  }
+
+  if (activeSession) {
+    return 'Focus session live. Minutes are being converted into XP.';
+  }
+
+  if (activeView === 'train') {
+    return 'Spend stored XP carefully. Each choice changes the build.';
+  }
+
+  if (activeView === 'log') {
+    if (currentMonthHours) {
+      return `This month has ${currentMonthHours.toFixed(2)} tracked hours in memory.`;
+    }
+
+    return hasHistory
+      ? 'No finished runs in the current month yet.'
+      : 'Your first finished session will appear in the log.';
+  }
+
+  if (activeView === 'tools') {
+    return 'Tune your save slot, repaint the partner, or export a bill.';
+  }
+
+  if (petName && petStatus) {
+    return `${petName} is ${petStatus}. Keep the loop moving to evolve it faster.`;
+  }
+
+  return 'Partner data is loading.';
+}
+
+function getStatusWord(status?: string) {
+  if (status === 'working') {
+    return 'Working';
+  }
+
+  if (status === 'resting') {
+    return 'Resting';
+  }
+
+  return 'Ready';
+}
 
 export function Dashboard() {
-  const [activeView, setActiveView] = useState<DashboardView>('gameplay');
+  const [activeView, setActiveView] = useState<DashboardView>('home');
+  const [calendarActionPending, setCalendarActionPending] = useState<
+    'connect' | 'sync' | 'disconnect' | null
+  >(null);
+  const [calendarActionError, setCalendarActionError] = useState<string | null>(null);
   const {
     user,
     loading: authLoading,
@@ -484,92 +491,283 @@ export function Dashboard() {
 
   const userId = user?.uid;
   const preferredName = user?.displayName || user?.email?.split('@')[0] || null;
-
-  const { pet, loading: petLoading, upgradeAttribute, upgradePending, renamePet, updatePalette, profilePending } = useSalaryMon(
-    userId,
-    preferredName,
-  );
+  const {
+    pet,
+    loading: petLoading,
+    upgradeAttribute,
+    upgradePending,
+    renamePet,
+    updatePalette,
+    profilePending,
+  } = useSalaryMon(userId, preferredName);
+  const { clients, loading: clientsLoading, savingClientId, saveClient } = useClients(userId);
+  const {
+    profile: businessProfile,
+    loading: businessProfileLoading,
+    saving: businessProfileSaving,
+    saveProfile,
+  } = useBusinessProfile(userId);
+  const {
+    connection: calendarConnection,
+    loading: calendarConnectionLoading,
+    saving: calendarConnectionSaving,
+    prepareConnection: prepareCalendarConnection,
+  } = useCalendarConnection(userId);
+  const { events: calendarEvents, loading: calendarEventsLoading } = useCalendarEvents(userId);
+  const {
+    preferences: schedulePreferences,
+    loading: schedulePreferencesLoading,
+    saving: schedulePreferencesSaving,
+    savePreferences: saveSchedulePreferences,
+  } = useSchedulePreferences(userId);
   const { activeSession, loading: sessionLoading, checkIn, checkOut } = useWorkSession(userId);
-  const { history, currentMonth, loading: historyLoading } = useWorkHistory(userId);
+  const { history, entries, currentMonth, loading: historyLoading } = useWorkHistory(userId);
+  const isGoogleCalendarClientIdConfigured = Boolean(
+    import.meta.env.PUBLIC_GOOGLE_CALENDAR_CLIENT_ID,
+  );
 
   const isEnvMissing = !import.meta.env.PUBLIC_FIREBASE_API_KEY;
   const isLoading = authLoading || (!!user && (petLoading || sessionLoading));
+  const activeViewMeta =
+    VIEW_OPTIONS.find((view) => view.id === activeView) ?? VIEW_OPTIONS[0];
 
-  function renderActiveView() {
-    if (!pet) {
-      return null;
+  const activityMessage = useMemo(
+    () =>
+      getActivityMessage({
+        activeSession: Boolean(activeSession),
+        activeView,
+        currentMonthHours: currentMonth?.totalHours ?? null,
+        hasHistory: history.length > 0,
+        isEnvMissing,
+        petName: pet?.name,
+        petStatus: getStatusWord(pet?.status),
+        user: Boolean(user),
+      }),
+    [activeSession, activeView, currentMonth?.totalHours, history.length, isEnvMissing, pet, user],
+  );
+
+  async function getFirebaseIdToken() {
+    if (!user) {
+      throw new Error('Sign in before connecting Google Calendar.');
     }
 
-    if (activeView === 'gameplay') {
+    return user.getIdToken();
+  }
+
+  async function handleCalendarConnect(settings: {
+    showMeetingsInPlanner: boolean;
+    includeTentativeEvents: boolean;
+  }) {
+    setCalendarActionPending('connect');
+    setCalendarActionError(null);
+
+    try {
+      const saved = await prepareCalendarConnection(settings);
+
+      if (!saved) {
+        throw new Error('Could not save calendar sync preferences.');
+      }
+
+      const idToken = await getFirebaseIdToken();
+      const response = await fetch('/api/google-calendar/connect', {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+        },
+      });
+      const payload = (await response.json()) as {
+        authUrl?: string;
+        error?: string;
+      };
+
+      if (!response.ok || !payload.authUrl) {
+        throw new Error(payload.error || 'Could not open Google Calendar OAuth.');
+      }
+
+      window.location.assign(payload.authUrl);
+    } catch (error) {
+      setCalendarActionError(
+        error instanceof Error ? error.message : 'Could not connect Google Calendar.',
+      );
+      setCalendarActionPending(null);
+    }
+  }
+
+  async function handleCalendarSync(settings: {
+    showMeetingsInPlanner: boolean;
+    includeTentativeEvents: boolean;
+  }) {
+    setCalendarActionPending('sync');
+    setCalendarActionError(null);
+
+    try {
+      const saved = await prepareCalendarConnection(settings);
+
+      if (!saved) {
+        throw new Error('Could not save calendar sync preferences.');
+      }
+
+      const idToken = await getFirebaseIdToken();
+      const response = await fetch('/api/google-calendar/sync', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+        },
+      });
+      const payload = (await response.json()) as {
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.error || 'Could not sync Google Calendar.');
+      }
+    } catch (error) {
+      setCalendarActionError(error instanceof Error ? error.message : 'Could not sync calendar.');
+    } finally {
+      setCalendarActionPending(null);
+    }
+  }
+
+  async function handleCalendarDisconnect() {
+    setCalendarActionPending('disconnect');
+    setCalendarActionError(null);
+
+    try {
+      const idToken = await getFirebaseIdToken();
+      const response = await fetch('/api/google-calendar/disconnect', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+        },
+      });
+      const payload = (await response.json()) as {
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.error || 'Could not disconnect Google Calendar.');
+      }
+    } catch (error) {
+      setCalendarActionError(
+        error instanceof Error ? error.message : 'Could not disconnect calendar.',
+      );
+    } finally {
+      setCalendarActionPending(null);
+    }
+  }
+
+  function renderView() {
+    if (isLoading) {
+      return <SplashCard>Booting device...</SplashCard>;
+    }
+
+    if (!user) {
       return (
-        <PanelsGrid>
-          <PanelSlot $desktop="span 7" $wide="span 7">
-            <PetCard pet={pet} />
-          </PanelSlot>
-          <PanelSlot $desktop="span 5" $wide="span 5">
-            <TrackerCard
-              activeSession={activeSession}
-              onCheckIn={checkIn}
-              onCheckOut={() => checkOut(pet)}
-            />
-          </PanelSlot>
-          <PanelSlot $desktop="span 12" $wide="span 12">
-            <ProgressCard
-              pet={pet}
-              upgradePending={upgradePending}
-              onUpgrade={upgradeAttribute}
-            />
-          </PanelSlot>
-        </PanelsGrid>
+        <AuthScreen
+          error={authError}
+          onCreateAccount={createAccount}
+          onGoogle={signInWithGoogle}
+          onSignIn={signInWithEmail}
+          pendingAction={pendingAction}
+        />
       );
     }
 
-    if (activeView === 'customization') {
+    if (!pet) {
+      return <SplashCard>Generating partner data...</SplashCard>;
+    }
+
+    if (activeView === 'home') {
       return (
-        <PanelsGrid>
-          <PanelSlot $desktop="span 5" $wide="span 5">
-            <PetCard pet={pet} />
-          </PanelSlot>
-          <PanelSlot $desktop="span 7" $wide="span 7">
-            <ProfileCard
-              onRenamePet={renamePet}
-              onRenameUser={updateDisplayName}
-              onUpdatePalette={updatePalette}
-              pet={pet}
-              profilePending={profilePending || pendingAction === 'profile'}
-              userName={preferredName || 'Trainer'}
-            />
-          </PanelSlot>
-          <PanelSlot $desktop="span 12" $wide="span 12">
-            <ProgressCard
-              pet={pet}
-              upgradePending={upgradePending}
-              onUpgrade={upgradeAttribute}
-            />
-          </PanelSlot>
-        </PanelsGrid>
+        <HomeGrid>
+          <PetCard pet={pet} />
+          <TrackerCard
+            activeSession={activeSession}
+            clients={clients}
+            onCheckIn={checkIn}
+            onCheckOut={() => checkOut(pet)}
+          />
+        </HomeGrid>
+      );
+    }
+
+    if (activeView === 'train') {
+      return (
+        <ProgressCard
+          pet={pet}
+          upgradePending={upgradePending}
+          onUpgrade={upgradeAttribute}
+        />
+      );
+    }
+
+    if (activeView === 'log') {
+      return (
+        <ViewStack>
+          <MonthlyOverviewCard loading={historyLoading} summary={currentMonth} />
+          <GoalsCard clients={clients} entries={entries} loading={historyLoading || clientsLoading} />
+          <PlannerCard
+            clients={clients}
+            entries={entries}
+            meetings={calendarEvents}
+            meetingsLoading={calendarEventsLoading}
+            loading={historyLoading || clientsLoading}
+            onSavePreferences={saveSchedulePreferences}
+            preferences={schedulePreferences}
+            preferencesLoading={schedulePreferencesLoading}
+            preferencesSaving={schedulePreferencesSaving}
+            showMeetings={
+              calendarConnection.status === 'connected' &&
+              calendarConnection.showMeetingsInPlanner
+            }
+          />
+          <JournalCard history={history} loading={historyLoading} />
+        </ViewStack>
       );
     }
 
     return (
-      <PanelsGrid>
-        <PanelSlot $desktop="span 5" $wide="span 5">
-          <TrackerCard
-            activeSession={activeSession}
-            onCheckIn={checkIn}
-            onCheckOut={() => checkOut(pet)}
-          />
-        </PanelSlot>
-        <PanelSlot $desktop="span 7" $wide="span 7">
-          <MonthlyOverviewCard loading={historyLoading} summary={currentMonth} />
-        </PanelSlot>
-        <PanelSlot $desktop="span 12" $wide="span 12">
-          <JournalCard history={history} loading={historyLoading} />
-        </PanelSlot>
-        <PanelSlot $desktop="span 12" $wide="span 12">
-          <InvoiceCard summary={currentMonth} />
-        </PanelSlot>
-      </PanelsGrid>
+      <UtilityGrid>
+        <ProfileCard
+          onRenamePet={renamePet}
+          onRenameUser={updateDisplayName}
+          onUpdatePalette={updatePalette}
+          pet={pet}
+          profilePending={profilePending || pendingAction === 'profile'}
+          userName={preferredName || 'Trainer'}
+        />
+        <BusinessProfileCard
+          loading={businessProfileLoading}
+          onSaveProfile={saveProfile}
+          profile={businessProfile}
+          saving={businessProfileSaving}
+        />
+        <CalendarConnectionCard
+          actionError={calendarActionError}
+          actionPending={calendarActionPending}
+          clientIdConfigured={isGoogleCalendarClientIdConfigured}
+          connection={calendarConnection}
+          events={calendarEvents}
+          eventsLoading={calendarEventsLoading}
+          loading={calendarConnectionLoading}
+          onConnect={handleCalendarConnect}
+          onDisconnect={handleCalendarDisconnect}
+          onSync={handleCalendarSync}
+          saving={calendarConnectionSaving}
+        />
+        <ClientDeskCard
+          clients={clients}
+          loading={clientsLoading}
+          onSaveClient={saveClient}
+          savingClientId={savingClientId}
+        />
+        <InvoiceCard
+          businessProfile={businessProfile}
+          clients={clients}
+          entries={entries}
+          loading={historyLoading || clientsLoading}
+        />
+      </UtilityGrid>
     );
   }
 
@@ -579,85 +777,89 @@ export function Dashboard() {
 
       <Screen>
         <Device>
-          <Shell>
-            <Header>
-              <HeaderBar>
-                <Kicker>Salary-mon OS</Kicker>
-                {user && (
-                  <UserPill>
-                    <UserGem />
-                    {preferredName || 'Trainer'}
-                  </UserPill>
+          <TopBar>
+            <BrandBlock>
+              <BrandTitle>Salary-mon</BrandTitle>
+              <BrandSubline>Focus Pet Computer // Workday Edition</BrandSubline>
+            </BrandBlock>
+
+            <Speaker aria-hidden="true">
+              <SpeakerRow>
+                <SpeakerDot />
+                <SpeakerDot />
+                <SpeakerDot />
+              </SpeakerRow>
+              <SpeakerRow>
+                <SpeakerDot />
+                <SpeakerDot />
+                <SpeakerDot />
+              </SpeakerRow>
+            </Speaker>
+          </TopBar>
+
+          <StatusStrip>
+            <StatusCell>
+              <StatusLabel>Trainer</StatusLabel>
+              <StatusValue>{preferredName || 'Guest Slot'}</StatusValue>
+            </StatusCell>
+            <StatusCell>
+              <StatusLabel>State</StatusLabel>
+              <StatusValue>{getStatusWord(activeSession ? 'working' : pet?.status)}</StatusValue>
+            </StatusCell>
+            <StatusCell>
+              <StatusLabel>Level</StatusLabel>
+              <StatusValue>{pet ? `Lv ${pet.level}` : '--'}</StatusValue>
+            </StatusCell>
+            <StatusCell>
+              <StatusLabel>Stored XP</StatusLabel>
+              <StatusValue>{pet ? pet.availableXp : '--'}</StatusValue>
+            </StatusCell>
+          </StatusStrip>
+
+          <Bezel>
+            <Lcd>
+              <LcdTop>
+                <ScreenHeading>
+                  <ScreenTag>{activeViewMeta.caption}</ScreenTag>
+                  <ScreenTitle>{activeViewMeta.title}</ScreenTitle>
+                  <ScreenMessage>{activityMessage}</ScreenMessage>
+                </ScreenHeading>
+
+                {user && <LogoutButton onClick={() => void signOutUser()}>Logout</LogoutButton>}
+              </LcdTop>
+
+              <Viewport>
+                {isEnvMissing && (
+                  <Warning>
+                    Firebase values are missing. Login and cloud save will stay offline until the
+                    local environment file is configured.
+                  </Warning>
                 )}
-              </HeaderBar>
 
-              <Headline>Raise a monster with your workday.</Headline>
+                {renderView()}
+              </Viewport>
+            </Lcd>
+          </Bezel>
 
-              <Summary>
-                Old-school digital pet energy, but for time tracking. Focus minutes become XP and
-                XP becomes growth for your Salary-mon.
-              </Summary>
+          <Controls>
+            {VIEW_OPTIONS.map((view) => (
+              <ControlButton
+                key={view.id}
+                $active={activeView === view.id}
+                onClick={() => {
+                  startTransition(() => {
+                    setActiveView(view.id);
+                  });
+                }}
+                type="button"
+              >
+                <ControlLabel>{view.label}</ControlLabel>
+                <ControlCaption>{view.caption}</ControlCaption>
+              </ControlButton>
+            ))}
+          </Controls>
 
-              <MenuTabs>
-                {VIEW_OPTIONS.map((view) => (
-                  <MenuTab
-                    key={view.id}
-                    $active={activeView === view.id}
-                    onClick={() => {
-                      startTransition(() => {
-                        setActiveView(view.id);
-                      });
-                    }}
-                    type="button"
-                  >
-                    {view.label}
-                  </MenuTab>
-                ))}
-              </MenuTabs>
-
-              <HeaderControls>
-                <SignalRow>
-                  <Signal>
-                    <SignalDot $color="#9fc28f" />
-                    Auth
-                  </Signal>
-                  <Signal>
-                    <SignalDot $color="#ffab4a" />
-                    Save
-                  </Signal>
-                  <Signal>
-                    <SignalDot $color="#ff7167" />
-                    Evo
-                  </Signal>
-                </SignalRow>
-
-                {user && <GhostButton onClick={() => void signOutUser()}>Logout</GhostButton>}
-              </HeaderControls>
-            </Header>
-
-            {isEnvMissing && (
-              <Warning>
-                Firebase environment values are missing. Login and cloud save will not work until
-                the local `.env` file is configured.
-              </Warning>
-            )}
-
-            {isLoading ? (
-              <LoadingCard>Booting Salary-mon...</LoadingCard>
-            ) : !user ? (
-              <AuthScreen
-                error={authError}
-                onCreateAccount={createAccount}
-                onGoogle={signInWithGoogle}
-                onSignIn={signInWithEmail}
-                pendingAction={pendingAction}
-              />
-            ) : !pet ? (
-              <LoadingCard>Generating creature data...</LoadingCard>
-            ) : (
-              <ViewStage key={activeView}>{renderActiveView()}</ViewStage>
-            )}
-          </Shell>
+          <FooterHint>A select // B act // C back // D menu</FooterHint>
         </Device>
       </Screen>
     </>

@@ -13,8 +13,9 @@ import {
 import { db } from '../../lib/firebase';
 import { awardSessionXp } from '../game/gameplay';
 import type { SalaryMon } from '../game/types';
+import type { TimeEntryMetadata } from './types';
 
-export interface TimeEntry {
+export interface TimeEntry extends TimeEntryMetadata {
   id?: string;
   userId: string;
   startTime: Timestamp;
@@ -62,18 +63,24 @@ export function useWorkSession(userId?: string | null) {
     return () => unsubscribe();
   }, [userId]);
 
-  const checkIn = async () => {
+  const checkIn = async (metadata?: Partial<TimeEntryMetadata>) => {
     if (!userId || activeSession) {
       return;
     }
 
     try {
+      const label = metadata?.label?.trim();
+
       await addDoc(collection(db, 'timeEntries'), {
         userId,
         startTime: Timestamp.now(),
         endTime: null,
         durationMinutes: 0,
         xpEarned: 0,
+        clientId: metadata?.clientId || null,
+        clientName: metadata?.clientName || null,
+        label: label ? label.slice(0, 48) : null,
+        billable: Boolean(metadata?.billable),
       });
 
       await setDoc(

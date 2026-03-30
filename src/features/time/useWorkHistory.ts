@@ -10,6 +10,10 @@ export interface WorkEntryRecord {
   endDate: Date | null;
   durationMinutes: number;
   xpEarned: number;
+  clientId: string | null;
+  clientName: string | null;
+  label: string | null;
+  billable: boolean;
 }
 
 export interface DailyWorkSummary {
@@ -18,6 +22,8 @@ export interface DailyWorkSummary {
   totalMinutes: number;
   totalXp: number;
   sessions: number;
+  totalBillableMinutes: number;
+  clientNames: string[];
 }
 
 export interface MonthlyWorkSummary {
@@ -26,6 +32,7 @@ export interface MonthlyWorkSummary {
   totalMinutes: number;
   totalHours: number;
   totalXp: number;
+  totalBillableMinutes: number;
   workdays: number;
   averageMinutesPerWorkday: number;
   daily: DailyWorkSummary[];
@@ -107,12 +114,21 @@ export function useWorkHistory(userId?: string | null) {
             endDate,
             durationMinutes: entry.durationMinutes,
             xpEarned: entry.xpEarned,
+            clientId: entry.clientId || null,
+            clientName: entry.clientName || null,
+            label: entry.label || null,
+            billable: Boolean(entry.billable),
           });
 
           if (existing) {
             existing.totalMinutes += entry.durationMinutes;
             existing.totalXp += entry.xpEarned;
             existing.sessions += 1;
+            existing.totalBillableMinutes += entry.billable ? entry.durationMinutes : 0;
+
+            if (entry.clientName && !existing.clientNames.includes(entry.clientName)) {
+              existing.clientNames.push(entry.clientName);
+            }
             return;
           }
 
@@ -122,6 +138,8 @@ export function useWorkHistory(userId?: string | null) {
             totalMinutes: entry.durationMinutes,
             totalXp: entry.xpEarned,
             sessions: 1,
+            totalBillableMinutes: entry.billable ? entry.durationMinutes : 0,
+            clientNames: entry.clientName ? [entry.clientName] : [],
           });
         });
 
@@ -140,6 +158,10 @@ export function useWorkHistory(userId?: string | null) {
 
         const totalMinutes = monthlyDaily.reduce((sum, day) => sum + day.totalMinutes, 0);
         const totalXp = monthlyDaily.reduce((sum, day) => sum + day.totalXp, 0);
+        const totalBillableMinutes = monthlyDaily.reduce(
+          (sum, day) => sum + day.totalBillableMinutes,
+          0,
+        );
         const workdays = monthlyDaily.length;
         const monthlySummary =
           monthlyEntries.length === 0
@@ -150,6 +172,7 @@ export function useWorkHistory(userId?: string | null) {
                 totalMinutes,
                 totalHours: Number((totalMinutes / 60).toFixed(2)),
                 totalXp,
+                totalBillableMinutes,
                 workdays,
                 averageMinutesPerWorkday:
                   workdays === 0 ? 0 : Math.round(totalMinutes / workdays),
