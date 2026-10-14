@@ -526,6 +526,7 @@ export async function syncGoogleCalendarForUser({
   request: Request;
 }): Promise<CalendarSyncResult> {
   assertGoogleCalendarEnabled();
+  const adminDb = getAdminDb();
 
   const connectionSnapshot = await getConnectionDoc(userId);
   const connection =
