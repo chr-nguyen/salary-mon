@@ -6,17 +6,17 @@ import {
   type SalaryMonAttributes,
   type SalaryMonPalette,
   type SalaryMonStatus,
-} from './types';
+} from "./types";
 
 export const XP_PER_MINUTE = 10;
 export const LEVEL_MULTIPLIER = 1000;
 export const BASE_UPGRADE_COST = 60;
 export const UPGRADE_STEP_COST = 15;
 
-type RawSalaryMon = Partial<SalaryMon> & {
+type RawSalaryMon = Omit<Partial<SalaryMon>, "attributes" | "appearance" | "status"> & {
   attributes?: Partial<SalaryMonAttributes>;
   appearance?: Partial<SalaryMonAppearance>;
-  status?: SalaryMonStatus | 'hungry' | 'fed' | 'sleeping';
+  status?: SalaryMonStatus | "hungry" | "fed" | "sleeping";
 };
 
 export function createDefaultAttributes(): SalaryMonAttributes {
@@ -31,19 +31,20 @@ export function createDefaultAttributes(): SalaryMonAttributes {
 
 export function createDefaultAppearance(): SalaryMonAppearance {
   return {
-    palette: 'classic',
+    palette: "classic",
+    companion: "mugi",
   };
 }
 
 function createStarterName(preferredName?: string | null) {
   if (!preferredName) {
-    return 'Mon-mon';
+    return "Mon-mon";
   }
 
   const seed = preferredName.trim().split(/\s+/)[0];
 
   if (!seed) {
-    return 'Mon-mon';
+    return "Mon-mon";
   }
 
   return `${seed.slice(0, 12)}-mon`;
@@ -79,23 +80,26 @@ export function getUpgradeCost(attributeValue: number) {
   return BASE_UPGRADE_COST + attributeValue * UPGRADE_STEP_COST;
 }
 
-function mapLegacyStatus(status?: RawSalaryMon['status']): SalaryMonStatus {
-  if (status === 'working') {
-    return 'working';
+function mapLegacyStatus(status?: RawSalaryMon["status"]): SalaryMonStatus {
+  if (status === "working") {
+    return "working";
   }
 
-  if (status === 'resting' || status === 'fed' || status === 'sleeping') {
-    return 'resting';
+  if (status === "resting" || status === "fed" || status === "sleeping") {
+    return "resting";
   }
 
-  return 'idle';
+  return "idle";
 }
 
 function estimateSpentXp(attributes: SalaryMonAttributes) {
   return ATTRIBUTE_KEYS.reduce((total, key) => total + attributes[key], 0);
 }
 
-export function createStarterSalaryMon(userId: string, preferredName?: string | null): SalaryMon {
+export function createStarterSalaryMon(
+  userId: string,
+  preferredName?: string | null,
+): SalaryMon {
   return {
     id: userId,
     userId,
@@ -104,7 +108,7 @@ export function createStarterSalaryMon(userId: string, preferredName?: string | 
     experience: 0,
     availableXp: 0,
     spentXp: 0,
-    status: 'idle',
+    status: "idle",
     attributes: createDefaultAttributes(),
     appearance: createDefaultAppearance(),
   };
@@ -125,11 +129,17 @@ export function normalizeSalaryMon(
     ...raw?.appearance,
   };
 
-  const experience = typeof raw?.experience === 'number' ? raw.experience : 0;
+  if (!["mugi", "sumi", "haku"].includes(appearance.companion || "")) {
+    appearance.companion = "mugi";
+  }
+
+  const experience = typeof raw?.experience === "number" ? raw.experience : 0;
   const spentXp =
-    typeof raw?.spentXp === 'number' ? raw.spentXp : estimateSpentXp(attributes);
+    typeof raw?.spentXp === "number"
+      ? raw.spentXp
+      : estimateSpentXp(attributes);
   const availableXp =
-    typeof raw?.availableXp === 'number'
+    typeof raw?.availableXp === "number"
       ? raw.availableXp
       : Math.max(0, experience - spentXp);
 
@@ -138,7 +148,7 @@ export function normalizeSalaryMon(
     userId: raw?.userId || userId,
     name: raw?.name || starter.name,
     level:
-      typeof raw?.level === 'number' && raw.level > 0
+      typeof raw?.level === "number" && raw.level > 0
         ? raw.level
         : calculateLevel(experience),
     experience,
@@ -150,7 +160,10 @@ export function normalizeSalaryMon(
   };
 }
 
-export function getMigrationPatch(raw: RawSalaryMon | undefined, normalized: SalaryMon) {
+export function getMigrationPatch(
+  raw: RawSalaryMon | undefined,
+  normalized: SalaryMon,
+) {
   if (!raw) {
     return normalized;
   }
@@ -191,12 +204,18 @@ export function getMigrationPatch(raw: RawSalaryMon | undefined, normalized: Sal
 
   if (
     !raw.attributes ||
-    ATTRIBUTE_KEYS.some((key) => raw.attributes?.[key] !== normalized.attributes[key])
+    ATTRIBUTE_KEYS.some(
+      (key) => raw.attributes?.[key] !== normalized.attributes[key],
+    )
   ) {
     patch.attributes = normalized.attributes;
   }
 
-  if (!raw.appearance || raw.appearance.palette !== normalized.appearance.palette) {
+  if (
+    !raw.appearance ||
+    raw.appearance.palette !== normalized.appearance.palette ||
+    raw.appearance.companion !== normalized.appearance.companion
+  ) {
     patch.appearance = normalized.appearance;
   }
 
@@ -217,13 +236,14 @@ export function buildPetRename(name: string) {
 
 export function buildPaletteUpdate(palette: SalaryMonPalette) {
   return {
-    appearance: {
-      palette,
-    },
+    "appearance.palette": palette,
   };
 }
 
-export function buildAttributeUpgrade(pet: SalaryMon, attribute: SalaryMonAttributeKey) {
+export function buildAttributeUpgrade(
+  pet: SalaryMon,
+  attribute: SalaryMonAttributeKey,
+) {
   const cost = getUpgradeCost(pet.attributes[attribute]);
 
   if (pet.availableXp < cost) {
@@ -251,7 +271,7 @@ export function awardSessionXp(pet: SalaryMon, durationMinutes: number) {
       experience,
       availableXp: pet.availableXp + xpEarned,
       level: calculateLevel(experience),
-      status: 'resting' as SalaryMonStatus,
+      status: "resting" as SalaryMonStatus,
     },
   };
 }

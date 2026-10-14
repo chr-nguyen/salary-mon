@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
-import { doc, onSnapshot, setDoc, updateDoc } from 'firebase/firestore';
-import { db } from '../../lib/firebase';
+import { useEffect, useState } from "react";
+import { doc, onSnapshot, setDoc, updateDoc } from "firebase/firestore";
+import { db } from "../../lib/firebase";
 import {
   buildAttributeUpgrade,
   buildPaletteUpdate,
@@ -8,13 +8,22 @@ import {
   createStarterSalaryMon,
   getMigrationPatch,
   normalizeSalaryMon,
-} from './gameplay';
-import type { SalaryMon, SalaryMonAttributeKey, SalaryMonPalette } from './types';
+} from "./gameplay";
+import type {
+  SalaryMon,
+  SalaryMonAttributeKey,
+  SalaryMonPalette,
+  SalaryMonCompanion,
+} from "./types";
 
-export function useSalaryMon(userId?: string | null, preferredName?: string | null) {
+export function useSalaryMon(
+  userId?: string | null,
+  preferredName?: string | null,
+) {
   const [pet, setPet] = useState<SalaryMon | null>(null);
   const [loading, setLoading] = useState(true);
-  const [upgradePending, setUpgradePending] = useState<SalaryMonAttributeKey | null>(null);
+  const [upgradePending, setUpgradePending] =
+    useState<SalaryMonAttributeKey | null>(null);
   const [profilePending, setProfilePending] = useState(false);
 
   useEffect(() => {
@@ -24,7 +33,7 @@ export function useSalaryMon(userId?: string | null, preferredName?: string | nu
       return;
     }
 
-    const petRef = doc(db, 'salaryMons', userId);
+    const petRef = doc(db, "salaryMons", userId);
 
     const unsubscribe = onSnapshot(
       petRef,
@@ -44,13 +53,13 @@ export function useSalaryMon(userId?: string | null, preferredName?: string | nu
             await setDoc(petRef, starterPet);
           }
         } catch (error) {
-          console.error('Error loading salary-mon:', error);
+          console.error("Error loading salary-mon:", error);
         } finally {
           setLoading(false);
         }
       },
       (error) => {
-        console.error('Error fetching pet:', error);
+        console.error("Error fetching pet:", error);
         setLoading(false);
       },
     );
@@ -72,10 +81,10 @@ export function useSalaryMon(userId?: string | null, preferredName?: string | nu
     setUpgradePending(attribute);
 
     try {
-      await updateDoc(doc(db, 'salaryMons', userId), patch);
+      await updateDoc(doc(db, "salaryMons", userId), patch);
       return true;
     } catch (error) {
-      console.error('Error upgrading attribute:', error);
+      console.error("Error upgrading attribute:", error);
       return false;
     } finally {
       setUpgradePending(null);
@@ -96,10 +105,26 @@ export function useSalaryMon(userId?: string | null, preferredName?: string | nu
     setProfilePending(true);
 
     try {
-      await updateDoc(doc(db, 'salaryMons', userId), patch);
+      await updateDoc(doc(db, "salaryMons", userId), patch);
       return true;
     } catch (error) {
-      console.error('Error renaming pet:', error);
+      console.error("Error renaming pet:", error);
+      return false;
+    } finally {
+      setProfilePending(false);
+    }
+  };
+
+  const updateCompanion = async (companion: SalaryMonCompanion) => {
+    if (!userId || profilePending) return false;
+    setProfilePending(true);
+    try {
+      await updateDoc(doc(db, "salaryMons", userId), {
+        "appearance.companion": companion,
+      });
+      return true;
+    } catch (error) {
+      console.error("Error changing companion:", error);
       return false;
     } finally {
       setProfilePending(false);
@@ -114,10 +139,13 @@ export function useSalaryMon(userId?: string | null, preferredName?: string | nu
     setProfilePending(true);
 
     try {
-      await updateDoc(doc(db, 'salaryMons', userId), buildPaletteUpdate(palette));
+      await updateDoc(
+        doc(db, "salaryMons", userId),
+        buildPaletteUpdate(palette),
+      );
       return true;
     } catch (error) {
-      console.error('Error updating palette:', error);
+      console.error("Error updating palette:", error);
       return false;
     } finally {
       setProfilePending(false);
@@ -131,6 +159,7 @@ export function useSalaryMon(userId?: string | null, preferredName?: string | nu
     upgradePending,
     renamePet,
     updatePalette,
+    updateCompanion,
     profilePending,
   };
 }

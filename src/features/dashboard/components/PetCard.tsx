@@ -1,384 +1,232 @@
-import React from 'react';
-import styled, { keyframes } from 'styled-components';
-import { ATTRIBUTE_KEYS, ATTRIBUTE_LABELS, type SalaryMon } from '../../game/types';
+import React, { useEffect, useState } from "react";
+import styled, { keyframes } from "styled-components";
+import type { SalaryMon, SalaryMonPalette } from "../../game/types";
+import {
+  COMPANIONS,
+  CompanionSprite,
+  type CompanionId,
+} from "../../cozy/CompanionSprite";
+import { SoftButton } from "../../cozy/CozyShell";
 
-const bob = keyframes`
-  0%, 100% {
-    transform: translate(-50%, -50%) scale(4);
-  }
-
-  50% {
-    transform: translate(-50%, calc(-50% - 3px)) scale(4);
-  }
+const delight = keyframes`0%,100%{transform:translateY(0) scale(1);} 35%{transform:translateY(-8px) scale(.97,1.03);}70%{transform:translateY(0) scale(1.03,.97);}`;
+const accents: Record<SalaryMonPalette, string> = {
+  classic: "#e9eedc", ocean: "#dfeced", forest: "#dfebd9",
+  plasma: "#eae1ef", sunset: "#f5e5d8",
+};
+const Card = styled.section<{ $palette: SalaryMonPalette }>`
+  --pet-accent: ${(p) => accents[p.$palette] || accents.classic};
+  min-width: 0;
 `;
-
-const Card = styled.section`
-  padding: 10px;
-  border: 2px solid #ff8d9f;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, transparent 18%),
-    linear-gradient(135deg, #ff7b72 0%, #c13f82 34%, #4a2167 66%, #170d2d 100%);
-  box-shadow:
-    inset 1px 1px 0 rgba(255, 255, 255, 0.16),
-    inset -1px -1px 0 rgba(0, 0, 0, 0.48),
-    0 0 0 2px rgba(116, 239, 255, 0.18);
-
-  @media (min-width: 1280px) {
-    padding: 14px;
-  }
-
-  @media (min-width: 2200px) {
-    padding: 20px;
-  }
-`;
-
-const Header = styled.div`
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px;
-  border: 2px solid rgba(255, 255, 255, 0.14);
-  background:
-    linear-gradient(120deg, rgba(255, 255, 255, 0.14) 0 22%, transparent 22% 100%),
-    linear-gradient(180deg, rgba(18, 10, 38, 0.24) 0%, rgba(18, 10, 38, 0.52) 100%);
-`;
-
-const Eyebrow = styled.div`
-  color: #74efff;
-  font-size: 10px;
-  text-transform: uppercase;
-`;
-
-const Name = styled.h2`
-  margin: 6px 0 0;
-  color: #f8fbff;
-  font-family: Georgia, "Times New Roman", serif;
-  font-size: 28px;
-  line-height: 0.98;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  text-shadow: 0 0 18px rgba(255, 200, 94, 0.18);
-
-  @media (min-width: 1280px) {
-    font-size: 32px;
-  }
-
-  @media (min-width: 2200px) {
-    font-size: 44px;
-  }
-`;
-
-const Status = styled.div`
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 6px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: linear-gradient(180deg, rgba(16, 10, 30, 0.55) 0%, rgba(10, 8, 21, 0.82) 100%);
-  color: #f8fbff;
-  font-size: 10px;
-  text-transform: uppercase;
-`;
-
-const StatusDot = styled.span<{ $active: boolean }>`
-  width: 8px;
-  height: 8px;
-  background: ${(props) => (props.$active ? '#9fc28f' : '#ffab4a')};
-  box-shadow: 0 0 0 1px #000;
-`;
-
-const Body = styled.div`
-  display: grid;
-  gap: 10px;
-  margin-top: 10px;
-
-  @media (min-width: 560px) {
-    grid-template-columns: 176px 1fr;
-    align-items: center;
-  }
-
-  @media (min-width: 1280px) {
-    grid-template-columns: 260px 1fr;
-    gap: 14px;
-  }
-
-  @media (min-width: 2200px) {
-    grid-template-columns: 360px 1fr;
-    gap: 20px;
-  }
-`;
-
-const Device = styled.div`
-  padding: 10px;
-  border: 2px solid rgba(255, 255, 255, 0.14);
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.08) 0 18%, transparent 18% 100%),
-    linear-gradient(180deg, #211333 0%, #120e22 100%);
-  box-shadow:
-    inset 1px 1px 0 rgba(255, 255, 255, 0.08),
-    inset -1px -1px 0 rgba(0, 0, 0, 0.4);
-`;
-
-const Display = styled.div`
+const Room = styled.div`
   position: relative;
-  height: 160px;
-  border: 2px solid rgba(255, 255, 255, 0.14);
-  background:
-    radial-gradient(circle at 50% 42%, rgba(255, 200, 94, 0.34) 0 18%, transparent 19%),
-    radial-gradient(circle at 18% 20%, rgba(255, 255, 255, 0.18) 0 1px, transparent 2px),
-    radial-gradient(circle at 78% 28%, rgba(255, 255, 255, 0.12) 0 1px, transparent 2px),
-    linear-gradient(180deg, transparent 0 66%, rgba(7, 8, 13, 0.46) 66% 100%),
-    linear-gradient(135deg, #5c1972 0%, #2b1856 42%, #101021 100%);
+  aspect-ratio: 3/2;
+  border-radius: 24px;
   overflow: hidden;
-
-  &::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background:
-      repeating-linear-gradient(
-        90deg,
-        rgba(116, 239, 255, 0.12) 0 1px,
-        transparent 1px 14px
-      ),
-      linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, transparent 28%);
-    pointer-events: none;
-  }
-
-  @media (min-width: 1280px) {
-    height: 220px;
-  }
-
-  @media (min-width: 2200px) {
-    height: 320px;
-  }
+  background: #e5d2ad url("/art/reading-room.png") center/cover;
+  border: 1px solid #dbceb7;
 `;
-
-const PixelSprite = styled.div<{ $active: boolean; $palette: string }>`
+const RoomLabel = styled.div`
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  background: var(--pet-accent);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: #4c593e;
+`;
+const Pet = styled.button<{ $reacting: boolean }>`
   position: absolute;
   left: 50%;
-  top: 50%;
-  width: 4px;
-  height: 4px;
-  background: #1b2918;
-  transform: translate(-50%, -50%) scale(4);
-  transform-origin: center;
-  animation: ${bob} 1.2s steps(2, end) infinite;
-  animation-play-state: ${(props) => (props.$active ? 'running' : 'paused')};
-  box-shadow:
-    4px 0 0 #1b2918,
-    8px 0 0 #1b2918,
-    12px 0 0 #1b2918,
-    20px 0 0 #1b2918,
-    24px 0 0 #1b2918,
-    28px 0 0 #1b2918,
-    0 4px 0 #1b2918,
-    4px 4px 0 ${(props) => props.$palette},
-    8px 4px 0 ${(props) => props.$palette},
-    12px 4px 0 ${(props) => props.$palette},
-    16px 4px 0 ${(props) => props.$palette},
-    20px 4px 0 ${(props) => props.$palette},
-    24px 4px 0 ${(props) => props.$palette},
-    28px 4px 0 #1b2918,
-    -4px 8px 0 #1b2918,
-    0 8px 0 ${(props) => props.$palette},
-    4px 8px 0 ${(props) => props.$palette},
-    8px 8px 0 ${(props) => props.$palette},
-    12px 8px 0 ${(props) => props.$palette},
-    16px 8px 0 ${(props) => props.$palette},
-    20px 8px 0 ${(props) => props.$palette},
-    24px 8px 0 ${(props) => props.$palette},
-    28px 8px 0 ${(props) => props.$palette},
-    32px 8px 0 #1b2918,
-    -4px 12px 0 #1b2918,
-    0 12px 0 ${(props) => props.$palette},
-    4px 12px 0 ${(props) => props.$palette},
-    8px 12px 0 #1b2918,
-    12px 12px 0 ${(props) => props.$palette},
-    16px 12px 0 ${(props) => props.$palette},
-    20px 12px 0 #1b2918,
-    24px 12px 0 ${(props) => props.$palette},
-    28px 12px 0 ${(props) => props.$palette},
-    32px 12px 0 #1b2918,
-    -4px 16px 0 #1b2918,
-    0 16px 0 ${(props) => props.$palette},
-    4px 16px 0 ${(props) => props.$palette},
-    8px 16px 0 ${(props) => props.$palette},
-    12px 16px 0 ${(props) => props.$palette},
-    16px 16px 0 ${(props) => props.$palette},
-    20px 16px 0 ${(props) => props.$palette},
-    24px 16px 0 ${(props) => props.$palette},
-    28px 16px 0 ${(props) => props.$palette},
-    32px 16px 0 #1b2918,
-    0 20px 0 #1b2918,
-    4px 20px 0 ${(props) => props.$palette},
-    8px 20px 0 ${(props) => props.$palette},
-    12px 20px 0 #ff7d4f,
-    16px 20px 0 #ff7d4f,
-    20px 20px 0 ${(props) => props.$palette},
-    24px 20px 0 ${(props) => props.$palette},
-    28px 20px 0 #1b2918,
-    4px 24px 0 #1b2918,
-    8px 24px 0 ${(props) => props.$palette},
-    12px 24px 0 ${(props) => props.$palette},
-    16px 24px 0 ${(props) => props.$palette},
-    20px 24px 0 ${(props) => props.$palette},
-    24px 24px 0 #1b2918;
-
-  @media (min-width: 1280px) {
-    transform: translate(-50%, -50%) scale(5);
-    animation: ${bob} 1.2s steps(2, end) infinite;
+  bottom: 10%;
+  width: 32%;
+  aspect-ratio: 1;
+  transform: translateX(-50%);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  filter: drop-shadow(0 8px 4px #60452225);
+  > span {
+    width: 100%;
+    height: 100%;
+    animation: ${(p) => (p.$reacting ? delight : "none")} 600ms ease-out;
   }
-
-  @media (min-width: 2200px) {
-    transform: translate(-50%, -50%) scale(7);
-    animation: ${bob} 1.2s steps(2, end) infinite;
+  &:focus-visible {
+    outline-offset: 6px;
+    border-radius: 50%;
   }
 `;
-
-const LevelBadge = styled.div`
-  position: absolute;
-  right: 6px;
-  bottom: 6px;
-  padding: 3px 5px;
-  border: 1px solid #f2d48c;
-  background: rgba(16, 24, 63, 0.74);
-  color: #f5d992;
-  font-size: 10px;
-  text-transform: uppercase;
+const Nameplate = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 19px 0 15px;
+  > div { min-width: 0; }
+  button { flex-shrink: 0; white-space: nowrap; }
+  h2 {
+    font-size: 23px;
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+  small {
+    font-size: 12px;
+    color: var(--cozy-muted);
+    font-weight: 400;
+    display: block;
+    margin-top: 4px;
+  }
+  p {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: var(--cozy-muted);
+  }
 `;
-
-const Story = styled.div`
+const Speech = styled.div`
+  min-height: 62px;
+  border: 1px solid var(--cozy-line);
+  border-radius: 4px 18px 18px;
+  background: var(--cozy-paper);
+  padding: 15px 20px;
+  margin: 0 0 20px;
+  font-size: 14px;
+`;
+const Friends = styled.div`
   display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+`;
+const Friend = styled.button<{ $selected: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  text-align: left;
+  border: 1px solid ${(p) => (p.$selected ? "#83956d" : "var(--cozy-line)")};
+  border-radius: 15px;
+  background: ${(p) =>
+    p.$selected ? "var(--pet-accent)" : "var(--cozy-paper)"};
+  padding: 9px 10px;
+  color: var(--cozy-ink);
+  min-width: 0;
+  strong {
+    font-size: 13px;
+  }
+  small {
+    display: block;
+    font-size: 12px;
+    color: var(--cozy-muted);
+  }
+  @media (max-width: 500px) {
+    flex-direction: column;
+    text-align: center;
+    padding: 8px 3px;
+    small {
+      font-size: 12px;
+    }
+  }
+`;
+const CollectionLabel = styled.div`
+  display: flex;
+  justify-content: space-between;
   gap: 8px;
-`;
-
-const Lead = styled.p`
-  margin: 0;
-  padding: 8px;
-  border: 2px solid rgba(255, 255, 255, 0.14);
-  background:
-    linear-gradient(120deg, rgba(255, 255, 255, 0.12) 0 18%, transparent 18% 100%),
-    linear-gradient(180deg, rgba(18, 10, 38, 0.2) 0%, rgba(18, 10, 38, 0.44) 100%);
-  color: #ffeef2;
+  margin: 0 0 10px;
   font-size: 12px;
-  line-height: 1.45;
-
-  @media (min-width: 1280px) {
-    font-size: 14px;
-  }
-
-  @media (min-width: 2200px) {
-    font-size: 18px;
-  }
+  color: var(--cozy-muted);
 `;
-
-const HighlightRow = styled.div`
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-`;
-
-const Highlight = styled.div`
-  padding: 8px;
-  border: 2px solid rgba(255, 255, 255, 0.14);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, transparent 18%),
-    linear-gradient(180deg, rgba(10, 9, 22, 0.28) 0%, rgba(10, 9, 22, 0.56) 100%);
-`;
-
-const HighlightLabel = styled.div`
-  color: #74efff;
-  font-size: 10px;
-  text-transform: uppercase;
-`;
-
-const HighlightValue = styled.div`
-  margin-top: 4px;
-  color: #fff8ec;
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-
-  @media (min-width: 2200px) {
-    font-size: 16px;
-  }
-`;
-
-function pickSignatureAttributes(pet: SalaryMon) {
-  return [...ATTRIBUTE_KEYS]
-    .sort((left, right) => pet.attributes[right] - pet.attributes[left])
-    .slice(0, 2);
-}
-
-function getStatusCopy(status: SalaryMon['status']) {
-  if (status === 'working') {
-    return 'Active';
-  }
-
-  if (status === 'resting') {
-    return 'Idle';
-  }
-
-  return 'Ready';
-}
-
-function getPaletteColor(pet: SalaryMon) {
-  return {
-    classic: '#ffd05b',
-    ocean: '#8ed6ff',
-    forest: '#7ce8ba',
-    plasma: '#d49cff',
-    sunset: '#ffb666',
-  }[pet.appearance.palette];
-}
-
-export function PetCard({ pet }: { pet: SalaryMon }) {
-  const signature = pickSignatureAttributes(pet);
-
+export function PetCard({
+  pet,
+  onCompanionChange,
+  pending = false,
+}: {
+  pet: SalaryMon;
+  onCompanionChange?: (id: CompanionId) => void;
+  pending?: boolean;
+}) {
+  const [reacting, setReacting] = useState(false);
+  const [message, setMessage] = useState("");
+  const companion = pet.appearance.companion || "mugi";
+  const friend = COMPANIONS.find((c) => c.id === companion) || COMPANIONS[0];
+  useEffect(() => {
+    if (!reacting) return;
+    const timer = setTimeout(() => setReacting(false), 650);
+    return () => clearTimeout(timer);
+  }, [reacting]);
+  useEffect(() => setMessage(""), [companion, pet.status]);
+  const greet = () => {
+    setReacting(true);
+    setMessage(
+      {
+        mugi: "むぎは、お気に入りの葉っぱを見せてくれた。",
+        sumi: "すみのノートに、あなたの似顔絵があった。",
+        haku: "はくは、となりを少しあけてくれた。",
+      }[companion],
+    );
+  };
   return (
-    <Card>
-      <Header>
+    <Card aria-label="相棒のおへや" $palette={pet.appearance.palette}>
+      <Room>
+        <RoomLabel>
+          {pet.status === "working"
+            ? "いっしょに、こつこつ。"
+            : "木もれびのおへや"}
+        </RoomLabel>
+        <Pet
+          type="button"
+          $reacting={reacting}
+          onClick={greet}
+          aria-label={`${friend.name}に声をかける`}
+        >
+          <CompanionSprite companion={companion} />
+        </Pet>
+      </Room>
+      <Nameplate>
         <div>
-          <Eyebrow>Partner Data</Eyebrow>
-          <Name>{pet.name}</Name>
+          <h2>
+            {pet.name}
+            <small>
+              Lv. {pet.level} · {friend.tag}
+            </small>
+          </h2>
+          <p>{friend.description}</p>
         </div>
-
-        <Status>
-          <StatusDot $active={pet.status === 'working'} />
-          {getStatusCopy(pet.status)}
-        </Status>
-      </Header>
-
-      <Body>
-        <Device>
-          <Display>
-            <PixelSprite $active={pet.status === 'working'} $palette={getPaletteColor(pet)} />
-            <LevelBadge>Lv {pet.level}</LevelBadge>
-          </Display>
-        </Device>
-
-        <Story>
-          <Lead>
-            Work fuels growth. Stored XP changes the build.
-          </Lead>
-
-          <HighlightRow>
-            <Highlight>
-              <HighlightLabel>Stored XP</HighlightLabel>
-              <HighlightValue>{pet.availableXp}</HighlightValue>
-            </Highlight>
-
-            <Highlight>
-              <HighlightLabel>Core Build</HighlightLabel>
-              <HighlightValue>
-                {signature.map((key) => ATTRIBUTE_LABELS[key]).join(' / ')}
-              </HighlightValue>
-            </Highlight>
-          </HighlightRow>
-        </Story>
-      </Body>
+        <SoftButton type="button" onClick={greet}>
+          声をかける
+        </SoftButton>
+      </Nameplate>
+      <Speech role="status">
+        {message ||
+          (pet.status === "working"
+            ? "「ここで待ってるね。あなたのペースで、どうぞ。」"
+            : "「おかえり。きょうも、いっしょにいよう。」")}
+      </Speech>
+      <CollectionLabel>
+        <span>相棒のすがた</span>
+        <span>いつでも、着がえられるよ</span>
+      </CollectionLabel>
+      <Friends>
+        {COMPANIONS.map((c) => (
+          <Friend
+            key={c.id}
+            type="button"
+            $selected={c.id === companion}
+            aria-pressed={c.id === companion}
+            disabled={!onCompanionChange || pending}
+            onClick={() => onCompanionChange?.(c.id)}
+          >
+            <CompanionSprite companion={c.id} size={44} />
+            <div>
+              <strong>{c.name}</strong>
+              <small>
+                {c.id === "mugi"
+                  ? "こつこつ"
+                  : c.id === "sumi"
+                    ? "ひらめき"
+                    : "のんびり"}
+              </small>
+            </div>
+          </Friend>
+        ))}
+      </Friends>
     </Card>
   );
 }

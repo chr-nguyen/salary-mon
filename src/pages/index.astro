@@ -1,8 +1,5 @@
 ---
-import { Dashboard } from "../features/dashboard/Dashboard";
-import Layout from "../layouts/Layout.astro";
+import { AppEntry } from '../features/cozy/AppEntry';
+import Layout from '../layouts/Layout.astro';
 ---
-
-<Layout>
-  <Dashboard client:only="react" />
-</Layout>
+<Layout><AppEntry client:only="react" /></Layout>

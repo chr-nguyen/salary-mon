@@ -4,6 +4,15 @@ Salary-mon is a mobile-first time tracker that turns real work sessions into RPG
 
 You log in, start a focus session, let the timer run while you work, and cash out that session into XP. That XP becomes spendable progression for your Salary-mon, so the app feels closer to a creature-raising game than a plain productivity dashboard.
 
+## Cozy visual direction (October 2026)
+
+The main companion experience now uses an illustrated room, three original companion appearances, and a Japanese room-and-diary UI. Home, timer, growth, and sign-in screens share this direction; the existing business tools retain their legacy card styling.
+
+- Start `yarn dev` and open `/cozy-preview` to try the UI without an account. Demo data resets on refresh; the optional fast-forward button advances only the demo timer.
+- Without the required public Firebase configuration, `/` also shows this clearly labeled demo. With Firebase configured, it opens the connected app.
+- Character appearances are cosmetic and share the existing pet's progression. The original XP rules remain unchanged.
+- Read [the visual research and implementation brief](docs/cozy-visual-research.md), [game-loop proposal](docs/game-direction-ja.md), and [art prompts](docs/art-generation.md).
+
 ## What the App Does
 
 - Tracks active work sessions with a simple start/finish timer
@@ -57,7 +66,7 @@ If the Google Calendar environment variables are not set, the rest of the app st
 - After signing in, your Firebase user ID becomes your save slot.
 - Your Salary-mon is created automatically the first time you log in.
 - Session history and pet progression are persisted in Firestore.
-- If Firebase Auth or Firestore is not configured correctly, the UI may load but login and saving will not work.
+- Without public Firebase configuration the app shows the demo. If credentials are present but Firebase Auth or Firestore are misconfigured, login or cloud saving may fail.
 
 ## Local Setup
 
